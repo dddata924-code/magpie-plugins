@@ -39,6 +39,8 @@ import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import { homedir, platform, arch } from "node:os"
 import { dirname, join } from "node:path"
+import { mkdtempSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { ExternalToolOutput, offeredTools, parseToolOutput, toolProtocol } from "./tools.mjs"
 
 const PROVIDER = "u1s12api"
@@ -67,8 +69,63 @@ const POLL_TIMEOUT_MS = 5 * 60 * 1000
 const RPC_TIMEOUT_MS = 600_000
 // Bound the flattened text context; transport itself uses stdin, never argv.
 const MAX_PROMPT_CHARS = 24_000
+// The model TTFB is dominated by the reasoning level the CLI sends. The
+// account's settings.json defaults are heavy (qwen=xhigh, glm=max,
+// deepseek=high): measured first byte 15.8s for qwen at xhigh vs 7.1s at
+// low, and 8.1s vs 6.6s for deepseek. Every u1s1 model accepts low, so the
+// plugin pins it; U1S1_THINKING overrides, and "off" is sent only when the
+// model allows disabling reasoning.
+const DEFAULT_THINKING = "low"
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// thinkingLevel resolves the reasoning level to pin on every CLI call.
+// U1S1_THINKING wins when valid; otherwise the low floor. Never returns
+// "off" by default: glm-5.3-flash does not accept off (levels low/high/max),
+// and low is the fastest level every model shares — that is the whole point.
+function thinkingLevel() {
+  const want = (process.env.U1S1_THINKING ?? "").trim().toLowerCase()
+  if (THINKING_LEVELS.includes(want)) return want
+  return DEFAULT_THINKING
+}
+
+// stagingImage turns one image block into a temp path the CLI's @<path>
+// attachment can read. Accepts base64 data URLs and local paths — the plugin
+// never fetches remote URLs on the provider's behalf. Returns "" when the
+// image can't be staged (the caller falls back to the text-mode note).
+function stagingImage(image) {
+  try {
+    const block = image?.type === "image" ? image : image?.image_url ? { url: image.image_url.url } : image
+    const source = block?.source
+    const typed = source && typeof source === "object" && typeof source.data === "string"
+    const raw = typed ? source.data : typeof source === "string" && source ? source : block?.url ?? block?.data ?? ""
+    if (typeof raw !== "string" || !raw) return ""
+    let payload, mime = source && typeof source === "object" && source.media_type ? source.media_type : "image/png"
+    if (/^data:image\/([a-zA-Z0-9.+-]+);base64,/u.test(raw)) {
+      mime = "image/" + raw.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,/u)[1]
+      payload = Buffer.from(raw.slice(raw.indexOf(",") + 1), "base64")
+    } else if (typed) {
+      // Anthropic-style source block: bare base64 with an explicit media_type
+      payload = Buffer.from(raw, "base64")
+    } else if (/^data:image\/([a-zA-Z0-9.+-]+),/u.test(raw)) {
+      mime = "image/" + raw.match(/^data:image\/([a-zA-Z0-9.+-]+),/u)[1]
+      payload = Buffer.from(decodeURIComponent(raw.slice(raw.indexOf(",") + 1)), "utf8")
+    } else if (/^[a-zA-Z]:[\\/]|^\\|^\/[^/]/u.test(raw) && fs.existsSync(raw)) {
+      return raw // local path: the CLI reads it directly
+    } else {
+      return "" // remote URL or unknown: don't fetch it for the provider
+    }
+    if (!payload?.length) return ""
+    const ext = mime.includes("jpeg") ? "jpg" : mime.includes("webp") ? "webp" : mime.includes("gif") ? "gif" : "png"
+    const dir = mkdtempSync(join(tmpdir(), "u1s12api-"))
+    const file = join(dir, "image." + ext)
+    fs.writeFileSync(file, payload)
+    return file
+  } catch {
+    return ""
+  }
+}
 
 const clip = (s, n = 200) => {
   const v = String(s ?? "").trim()
@@ -587,9 +644,18 @@ class RpcWorker {
     if (signal?.aborted) return Promise.reject(new Error("the request was aborted"))
     if (this.dead) return Promise.reject(new Error("the u1s1 CLI process exited"))
     if (this.proc) return Promise.reject(new Error("the u1s1 CLI worker already has a request"))
-    if (images?.length) message += "\n\n[附 " + images.length + " 张图片，文本模式未携带]"
+    // 图片直传：CLI 的 -p 模式支持 @<路径> 附件（vision 模型）。临时文件用完即删。
+    const argFiles = []
+    for (const image of images ?? []) {
+      const file = stagingImage(image)
+      if (file) argFiles.push(file)
+    }
+    if (images?.length && !argFiles.length) message += "\n\n[附 " + images.length + " 张图片，文本模式未携带]"
     const args = [this.cli.index, "-p", "--no-session", "--no-tools"]
     if (model) args.push("--model", "u1s1/" + String(model).replace(/^(?:u1s12api|u1s1)\//, ""))
+    // 速度：钉住思考等级，避免 settings.json 的 max/xhigh 拖慢首字节
+    args.push("--thinking", thinkingLevel())
+    args.push(...argFiles.map((f) => "@" + f))
     return new Promise((resolve, reject) => {
       let proc, timer, settled = false, out = "", errOut = ""
       const finish = (error) => {
@@ -605,6 +671,7 @@ class RpcWorker {
         } else {
           resolve({ text: out.trim(), usage: null, model: model ?? null, stopReason: "stop" })
         }
+        for (const file of argFiles) { try { fs.rmSync(file, { force: true }) } catch {} }
       }
       const onAbort = () => finish(new Error("the request was aborted"))
       this.cancel = onAbort
@@ -676,9 +743,9 @@ export const U1s12apiPlugin = async (_input) => {
         api: base,
         ...was,
         models: {
-          "deepseek-flash": { name: "DeepSeek Flash", limit: { context: 1048576 }, tool_call: true },
-          "qwen3.8-flash": { name: "Qwen3.8 Flash", limit: { context: 1000000 }, tool_call: true },
-          "glm-5.3-flash": { name: "GLM-5.3 Flash", limit: { context: 1048576 }, tool_call: true },
+          "deepseek-flash": { name: "DeepSeek Flash", limit: { context: 1048576, output: 384000 }, reasoning: true, tool_call: true, modalities: { input: ["text", "image"], output: ["text"] }, cost: { input: 0.1497, output: 0.5988 } },
+          "qwen3.8-flash": { name: "Qwen3.8 Flash", limit: { context: 1000000, output: 131072 }, reasoning: true, tool_call: true, modalities: { input: ["text", "image"], output: ["text"] }, cost: { input: 0.16, output: 0.47 } },
+          "glm-5.3-flash": { name: "GLM-5.3 Flash", limit: { context: 1048576, output: 131072 }, reasoning: true, tool_call: true, modalities: { input: ["text", "image"], output: ["text"] }, cost: { input: 0.15, output: 0.5 } },
         },
       }
     },
@@ -993,8 +1060,11 @@ export const _internal = {
   estimateTokens,
   estimateTextTokens,
   estimatedUsage,
+  thinkingLevel,
+  stagingImage,
   packPrompt,
   MAX_PROMPT_CHARS,
+  DEFAULT_THINKING,
   htu,
   isB64Url,
 }

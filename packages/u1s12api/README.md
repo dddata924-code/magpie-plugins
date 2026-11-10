@@ -39,12 +39,19 @@ node magpie-smoke.mjs
 - 流式调用转发 CLI stdout，补充 `finish_reason: stop` 与 `[DONE]`。流式粒度取决于 CLI 的 stdout 输出方式。
 - 用量按套餐种类、scope、每日/总量及耗尽状态分组；`amount` 表示已消耗量，`display` 明示剩余量。
 - 存在可用套餐或现金余额时，已耗尽套餐标记 `aside: true`，不阻断仍可消费的账号；所有已知套餐与现金均耗尽时保留阻断用量窗口。
-- 会话里的「输入 / 输出」token 是本地估算（CLI print 模式不返回用量），输入按请求体字符、输出按回复字符（CJK 按 1 字 1 token、其余按 4 字符 1 token）粗估，用于展示；**实际扣费以 u1s1 服务端为准**。
+- 会话里的「输入 / 输出」token 是本地估算（CLI print 模式不返回用量），输入按请求体字符、输出按回复字符（CJK 按 1 字 1 token、其余按 4 字符 1 token）粗估，用于展示；**实际扣费以 u1s1 服务端为准**。思考等级默认钉在 `low` 以压首字节延迟，`U1S1_THINKING` 环境变量可覆盖（如 `off`/`medium`/`max`）。
 - 本版是文本桥接：图片转为说明文字，API 工具调用、temperature/max_tokens 等生成参数尚未映射到 CLI。测试覆盖文本聊天，不代表完整多模态或工具协议兼容。
 
 ## 登录与签到
 
 登录凭证与官方 CLI 共用 `~/.u1s1/config.json`。签到是原有独立功能，依赖网站登录态与服务端规则；本次传输修复及真实验收不调用签到、不改变签到开关。网站登录态的获取方式见 [login-once.mjs](./login-once.mjs)。
+
+## 0.2.3 修复
+
+- 速度：把思考等级钉在 `low`（实测 qwen3.8-flash 首字节 15.8s→7.1s，deepseek 8.1s→6.6s；`U1S1_THINKING` 可覆盖，glm 不接受 off 故默认不用 off）。CLI 进程冷启动仅 ~180ms，不构成瓶颈。
+- 图片直传：`-p` 模式的 `@<路径>` 附件现在真实携带图片（模型声明 vision 能力），不再降级为「图片转文字」；base64/本地路径进 `@` 附件，远程 URL 不进。
+- 模型声明补齐：三个模型全带 `modalities.input: ["text","image"]`、真实 cost 与 context/output 上限（来自网关 `/v1/models`）。
+- 已实测 CLI 1.14.6（当前 1.11.2）：新版对 qwen 的默认思考等级即有 ~2× 提速，并新增 `--mode rpc` JSONL 常驻协议——RPC 事件内可直接拿到真实 usage/cost（替代本地估算）与图片附件，是下一步常驻接入的备选通道。
 
 ## 0.2.2 修复
 

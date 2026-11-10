@@ -50,6 +50,18 @@ test("loader passes selected model and isolates CLI tools and session", async ()
   assert.ok(data.args.includes("--no-tools"))
 })
 
+test("loader pins a low thinking level so the first byte is not spent on heavy reasoning", async () => {
+  const data = await payload(await request(await loader(), "THINKING"))
+  assert.ok(data.args.includes("--thinking"), "thinking flag present")
+  assert.equal(data.args[data.args.indexOf("--thinking") + 1], "low")
+})
+
+test("stagingImage keeps local image paths and rejects remote URLs", async () => {
+  const { stagingImage } = _internal
+  assert.equal(stagingImage({ image_url: { url: "https://example.com/x.png" } }), "")
+  assert.equal(stagingImage({ type: "image", source: { type: "base64", media_type: "image/png", data: "bm90LWltZw==" } }) === "", false)
+})
+
 test("pre-aborted requests do not start inference", async () => {
   const signal = AbortSignal.abort()
   await assert.rejects(request(await loader(), "CANCELLED", { signal }), /abort/i)
