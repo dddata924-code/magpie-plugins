@@ -1,5 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import fs from "node:fs"
+import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { once } from "node:events"
 import { U1s12apiPlugin, _internal } from "./index.mjs"
@@ -185,4 +187,56 @@ test("streaming responses end with a usage frame before DONE", async () => {
   assert.ok(usage.usage.prompt_tokens >= 1)
   assert.ok(usage.usage.completion_tokens >= 1)
   assert.equal(usage.usage.total_tokens, usage.usage.prompt_tokens + usage.usage.completion_tokens)
+})
+
+// RPC daemon: these run against the real installed CLI and consume quota, so
+// they are opt-in via U1S1_RPC_TEST=1. The first one cold-starts the daemon;
+// later ones reuse it, which is the whole point of the resident transport.
+const rpcTest = process.env.U1S1_RPC_TEST === "1" ? test : test.skip
+
+// The real CLI (not the fixture) is required for RPC mode.
+function realCli() {
+  const candidates = [
+    process.env.U1S1_RPC_CLI_DIST,
+    "E:/Scoop/apps/nodejs/current/bin/node_modules/u1s1-cli/dist",
+    "E:/Scoop/persist/nodejs24/bin/node_modules/u1s1-cli/dist",
+  ]
+  for (const d of candidates) {
+    if (d && fs.existsSync(join(d, "index.js"))) return { dist: d, node: "node", index: join(d, "index.js") }
+  }
+  return null
+}
+
+rpcTest("resident RPC daemon returns a reply and real per-turn usage", async (t) => {
+  const cli = realCli()
+  assert.ok(cli, "real u1s1 CLI installed")
+  if (!_internal.supportsRpc(cli)) return t.skip("CLI too old for RPC mode")
+  const daemon = new _internal.RpcDaemon(cli)
+  try {
+    const first = await daemon.prompt("回复两个字：收到", [], { model: "deepseek-flash" })
+    assert.equal(String(first.text).trim(), "收到")
+    assert.ok(first.usage?.totalTokens > 0, "real usage present")
+    assert.ok(first.usage?.input > 0 && first.usage?.output > 0)
+    const warm = await daemon.prompt("回复两个字：好的", [], { model: "deepseek-flash" })
+    assert.equal(String(warm.text).trim(), "好的")
+    assert.ok(warm.usage?.totalTokens > 0)
+  } finally {
+    daemon.stop()
+  }
+})
+
+rpcTest("resident RPC daemon carries the injected tool protocol to parseToolOutput", async (t) => {
+  const cli = realCli()
+  if (!_internal.supportsRpc(cli)) return t.skip("CLI too old for RPC mode")
+  const daemon = new _internal.RpcDaemon(cli)
+  try {
+    const protocol = '[External Harness tool protocol]\nReturn the next external action by writing <tool_call>{"name":"tool_name","arguments":{}}</tool_call>.\n{"name":"bash","description":"run a command","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}'
+    const reply = await daemon.prompt("请调用 bash 工具执行 echo hi。\n\n" + protocol, [], { model: "deepseek-flash" })
+    const tools = [{ name: "bash", description: "run a command", parameters: { type: "object", properties: { command: { type: "string" } } } }]
+    const parsed = (await import("./tools.mjs")).parseToolOutput(reply.text, tools)
+    assert.ok(parsed.calls.length >= 1, "the model used the tool protocol")
+    assert.equal(parsed.calls[0].function.name, "bash")
+  } finally {
+    daemon.stop()
+  }
 })

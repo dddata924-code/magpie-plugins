@@ -46,6 +46,13 @@ node magpie-smoke.mjs
 
 登录凭证与官方 CLI 共用 `~/.u1s1/config.json`。签到是原有独立功能，依赖网站登录态与服务端规则；本次传输修复及真实验收不调用签到、不改变签到开关。网站登录态的获取方式见 [login-once.mjs](./login-once.mjs)。
 
+## 0.3.0 进化
+
+- **常驻 RPC 传输**：CLI ≥ 1.14 时改用 `--mode rpc` 常驻进程（JSONL 协议），一个进程跨请求复用，省掉每次 print 冷启动。实测：冷启动后 **热请求 2.0–3.1s**，对比 print 模式每次 10–14s；空闲 5 分钟自动回收（`U1S1_RPC_IDLE_MS` 可调）。
+- **真实 usage**：RPC 的 `message_end` 事件直接带 `input/output/cacheRead/cost`，非流式与流式的终止帧都上报真实 token 数，不再靠估算（`estimatedUsage` 降级为 print 回退路径的兜底）。
+- **自动兼容**：CLI < 1.14 或 RPC 首次失败时自动回退 print 模式（同一实例内不再重试坏掉的 daemon），旧安装不受影响。
+- 工具协议不变：RPC 下仍走注入的 `<tool_call>` 文本协议，`parseToolOutput` 行为一致。
+
 ## 0.2.3 修复
 
 - 速度：把思考等级钉在 `low`（实测 qwen3.8-flash 首字节 15.8s→7.1s，deepseek 8.1s→6.6s；`U1S1_THINKING` 可覆盖，glm 不接受 off 故默认不用 off）。CLI 进程冷启动仅 ~180ms，不构成瓶颈。

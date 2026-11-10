@@ -1,7 +1,7 @@
 {
   "name": "u1s12api",
-  "version": "0.2.3",
-  "description": "u1s1 provider plugin for magpie/OpenCode — browser sign-in, official CLI model gateway, daily check-in, quota display with routed spent windows, bounded CLI prompts, pinned low thinking for faster first byte and true vision image attachments.",
+  "version": "0.3.0",
+  "description": "u1s1 provider plugin for magpie/OpenCode — browser sign-in, official CLI model gateway, daily check-in, quota display, resident RPC transport (real usage, faster warm turns) with print-mode fallback.",
   "type": "module",
   "main": "./index.mjs",
   "exports": "./index.mjs",

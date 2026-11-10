@@ -714,15 +714,352 @@ class RpcWorker {
   kill() { this.dead = true; this.abort() }
 }
 
+// ---- resident RPC daemon --------------------------------------------------
+//
+// The CLI (>= 1.14) also speaks a JSONL RPC mode (`--mode rpc`): one process
+// stays alive across requests, each prompt gets a fresh session, and the
+// events carry real usage/cost. Measured on this install: cold first request
+// 4.8s vs 10-14s for print mode, warm requests 2.0-2.4s, with true
+// input/output/cacheRead/cost per turn. The daemon reuses its device
+// credential and model lookup, so the heavy startup cost is paid once.
+// Older CLIs (print-only) keep the one-shot RpcWorker path.
+
+// cliVersion reads the installed CLI's package version, or null when unknown.
+function cliVersion(cli) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(join(dirname(cli.index), "..", "package.json"), "utf8"))
+    return typeof pkg.version === "string" ? pkg.version : null
+  } catch {
+    return null
+  }
+}
+
+// supportsRpc is true when the installed CLI has the resident JSONL mode.
+// The RPC protocol appears in 1.14 (the interactive loop fixes landed with
+// it); 1.11-era builds stuck after the setStatus frame, so gate on the
+// version rather than probing blindly.
+function supportsRpc(cli) {
+  const v = cliVersion(cli)
+  if (!v) return false
+  const [major, minor] = v.split(".").map((n) => Number(n) || 0)
+  return major > 1 || (major === 1 && minor >= 14)
+}
+
+// one RpcDaemon owns one resident `--mode rpc` CLI process and serializes
+// prompts over its JSONL stdin/stdout. A broken or stuck process is torn
+// down and the caller falls back to print mode. The resident process is
+// reaped after RPC_DAEMON_IDLE_MS without a prompt, so a plugin that is
+// signed in but idle does not keep a CLI child alive forever.
+const RPC_DAEMON_IDLE_MS = Number(process.env.U1S1_RPC_IDLE_MS) || 5 * 60_000
+class RpcDaemon {
+  constructor(cli) {
+    this.cli = cli
+    this.proc = null
+    this.nextId = 1
+    this.pending = new Map() // id -> {resolve, reject, timer, signal, onEvent}
+    this.ready = null
+    this.busy = false
+    this.closed = false
+    this.stdoutBuf = ""
+    this.idle = null
+  }
+
+  // idleArm resets the reaper: the process lives while prompts keep coming,
+  // and is killed after the idle window so a long-running host is not left
+  // with a CLI child it no longer needs.
+  idleArm() {
+    clearTimeout(this.idle)
+    this.idle = setTimeout(() => {
+      this.idle = null
+      this.stop()
+    }, RPC_DAEMON_IDLE_MS)
+    if (typeof this.idle.unref === "function") this.idle.unref()
+  }
+
+  // start launches the CLI and waits for it to accept commands.
+  // Returns the process; throws when spawn or the ready frame fails.
+  async start() {
+    if (this.proc) return this.proc
+    this.closed = false
+    const proc = spawn(this.cli.node, [this.cli.index, "--mode", "rpc", "--no-session", "--no-tools", "--model", "u1s1/deepseek-flash", "--thinking", thinkingLevel()], {
+      cwd: homedir(),
+      env: { ...process.env, PI_TELEMETRY: "0", U1S1_TELEMETRY: "0" },
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    })
+    this.proc = proc
+    proc.stdout.setEncoding("utf8")
+    proc.stdout.on("data", (chunk) => this._onData(chunk))
+    proc.stderr.setEncoding("utf8")
+    proc.stderr.on("data", () => {}) // diagnostics only; errors surface via responses
+    const onClose = () => {
+      this._failAll(new Error("the u1s1 CLI RPC session died"))
+      this.proc = null
+      this.ready = null
+    }
+    proc.on("close", onClose)
+    proc.on("error", () => onClose())
+    // The first frame the RPC mode emits is the setStatus extension request;
+    // that is the "ready" signal. If the old CLI doesn't speak RPC it either
+    // exits or never frames — both time out here.
+    this.ready = new Promise((resolve) => {
+      const t = setTimeout(() => resolve(false), 15000)
+      this._readyResolve = (ok) => { clearTimeout(t); resolve(ok) }
+    })
+    const ok = await this.ready
+    if (!ok) {
+      try { proc.kill("SIGKILL") } catch {}
+      this.proc = null
+      throw new Error("the u1s1 CLI did not enter RPC mode (version too old?)")
+    }
+    return proc
+  }
+
+  _onData(chunk) {
+    this.stdoutBuf += chunk
+    let nl
+    while ((nl = this.stdoutBuf.indexOf("\n")) !== -1) {
+      const line = this.stdoutBuf.slice(0, nl).trim()
+      this.stdoutBuf = this.stdoutBuf.slice(nl + 1)
+      if (!line) continue
+      let frame
+      try {
+        frame = JSON.parse(line)
+      } catch {
+        continue
+      }
+      if (frame?.type === "extension_ui_request" && this._readyResolve) {
+        this._readyResolve(true)
+        this._readyResolve = null
+        continue
+      }
+      if (frame?.id && this.pending.has(frame.id)) {
+        const entry = this.pending.get(frame.id)
+        if (frame.type === "response") this._settle(entry, frame)
+        else entry.onEvent?.(frame)
+        continue
+      }
+      // Events without an id carry turn progress: forward to the active turn.
+      this._activeTurn?.onEvent?.(frame)
+    }
+  }
+
+  _settle(entry, frame) {
+    this.pending.delete(frame.id)
+    clearTimeout(entry.timer)
+    entry.signal?.removeEventListener("abort", entry.onAbort)
+    if (this.proc && this._activeTurn === entry.turn) this._activeTurn = null
+    if (frame.success) entry.resolve(frame)
+    else entry.reject(new Error(frame.error || "the u1s1 CLI RPC call failed"))
+  }
+
+  _failAll(message) {
+    for (const [id, entry] of this.pending) {
+      clearTimeout(entry.timer)
+      entry.reject(new Error(message))
+    }
+    this.pending.clear()
+    const turn = this._activeTurn
+    this._activeTurn = null
+    turn?.settled?.(new Error(message))
+  }
+
+  // send writes one JSONL command and resolves with its response frame.
+  send(command, { signal, timeoutMs = 30000, onEvent } = {}) {
+    if (this.closed || !this.proc) return Promise.reject(new Error("the u1s1 CLI RPC session is not running"))
+    const id = String(this.nextId++)
+    return new Promise((resolve, reject) => {
+      const entry = { id, resolve, reject, onEvent, signal, turn: null }
+      const onAbort = () => {
+        this.pending.delete(id)
+        clearTimeout(entry.timer)
+        reject(new Error("the request was aborted"))
+      }
+      entry.onAbort = onAbort
+      entry.timer = setTimeout(() => {
+        this.pending.delete(id)
+        signal?.removeEventListener("abort", onAbort)
+        reject(new Error("the u1s1 CLI RPC timed out"))
+      }, timeoutMs)
+      signal?.addEventListener("abort", onAbort, { once: true })
+      this.pending.set(id, entry)
+      try {
+        this.proc.stdin.write(JSON.stringify({ ...command, id }) + "\n")
+      } catch (e) {
+        this._settle(entry, { id, type: "response", success: false, error: String(e?.message ?? e) })
+      }
+    })
+  }
+
+  // prompt runs one turn in its own session and resolves with the assistant
+  // text and the real usage the CLI reported. onText gets streaming deltas.
+  async prompt(message, images, { onText, signal, model, onTool, timeoutMs = RPC_TIMEOUT_MS } = {}) {
+    await this.start()
+    if (signal?.aborted) throw new Error("the request was aborted")
+    // A turn can legitimately outlive the idle window (slow model, long tool
+    // loop). The reaper must not kill the daemon mid-prompt, so idle watching
+    // is disarmed while a turn is in flight and re-armed in finally.
+    this.idleArm()
+    clearTimeout(this.idle)
+    this.idle = null
+    const session = await this.send({ type: "new_session" }, { signal, timeoutMs: 30000 })
+    if (!session?.success) throw new Error("the u1s1 CLI RPC could not start a session")
+    // model switch, defaulting to the daemon's startup model
+    const normalized = String(model ?? "").replace(/^(?:u1s12api|u1s1)\//, "")
+    if (normalized) {
+      const setModel = await this.send({ type: "set_model", provider: "u1s1", modelId: normalized }, { signal, timeoutMs: 30000 }).catch(() => null)
+      if (setModel && !setModel.success) {
+        // unknown model id → the CLI answers with its catalog id; fall back
+        // to the daemon default rather than failing the request
+      }
+    }
+    // the daemon already pins low thinking at start; the request may override
+    if (thinkingLevel() !== DEFAULT_THINKING) {
+      await this.send({ type: "set_thinking_level", level: thinkingLevel() }, { signal, timeoutMs: 10000 }).catch(() => null)
+    }
+    const turn = new TurnCollector({ onText, onTool })
+    this._activeTurn = turn
+    try {
+      // newline-delimited events: command response, then turn frames
+      const responded = await this.send({ type: "prompt", message, images: images ?? [] }, { signal, timeoutMs, onEvent: (frame) => turn.onEvent(frame) })
+      if (!responded?.success) {
+        turn.settled(new Error(responded?.error || "the u1s1 CLI RPC prompt failed"))
+      }
+      const result = await turn.finished // waits for turn_end / agent_end
+      return { text: result.text, usage: result.usage, model: normalized || null, stopReason: result.stopReason ?? "stop" }
+    } finally {
+      if (this._activeTurn === turn) this._activeTurn = null
+      // Re-arm the idle reaper only after the turn settled (or aborted); a
+      // dead daemon is already cleared in start()/stop(), so guard on proc.
+      if (this.proc && !this.closed) this.idleArm()
+    }
+  }
+
+  // abort cancels the in-flight command (the CLI also receives SIGKILL on a
+  // stuck prompt via the turn timeout; new_session resets between turns).
+  stop() {
+    this.closed = true
+    clearTimeout(this.idle)
+    this.idle = null
+    try { this.proc?.stdin?.end() } catch {}
+    try { this.proc?.kill("SIGKILL") } catch {}
+    this.proc = null
+    this._failAll(new Error("the u1s1 CLI RPC session was stopped"))
+  }
+}
+
+// TurnCollector accumulates one RPC turn: assistant deltas, tool fragments
+// and the final usage. It resolves when turn_end/agent_end arrives.
+class TurnCollector {
+  constructor({ onText, onTool }) {
+    this.onText = onText
+    this.onTool = onTool
+    this.text = ""
+    this.usage = null
+    this.stopReason = null
+    this.done = false
+    this.lastAssistant = null
+    this._resolve = null
+    this._reject = null
+    this.finished = new Promise((resolve, reject) => {
+      this._resolve = resolve
+      this._reject = reject
+    })
+  }
+
+  // finish commits the final assistant text once and settles the turn.
+  finish() {
+    if (this.done) return
+    this.done = true
+    // RPC message events carry the full message, not deltas, so the text is
+    // committed here in one piece (the loader's streaming path then forwards
+    // it as a single content frame — correct, just coarser than print mode).
+    const text = this.lastAssistant?.text ?? this.text
+    if (text) this.onText?.(text)
+    this.stopReason = "stop"
+    this._resolve({ text, usage: this.usage, stopReason: this.stopReason })
+  }
+
+  onEvent(frame) {
+    switch (frame?.type) {
+      case "message_start":
+      case "message_update":
+      case "message_end": {
+        const message = frame.message
+        if (message?.role !== "assistant") break
+        if (message.usage?.totalTokens != null) this.usage = message.usage
+        const content = message.content
+        // RPC assistant messages arrive as blocks; keep only the text, and
+        // remember the newest full message for the final commit.
+        if (Array.isArray(content)) {
+          const text = content.filter((b) => b?.type === "text" && typeof b.text === "string").map((b) => b.text).join("")
+          if (text) this.lastAssistant = { text, usage: message.usage ?? this.usage }
+        } else if (typeof content === "string" && content) {
+          this.lastAssistant = { text: content, usage: message.usage ?? this.usage }
+        }
+        break
+      }
+      case "turn_end":
+        this.finish()
+        break
+      case "agent_end":
+      case "agent_settled": {
+        if (!this.done) this.finish()
+        break
+      }
+    }
+  }
+
+  settled(error) {
+    if (this.done) return
+    if (error) { this.done = true; this._reject(error); return }
+    this.finish()
+  }
+}
+
 // ---- the plugin -----------------------------------------------------------
 
 export const U1s12apiPlugin = async (_input) => {
+  // One resident RPC daemon per plugin instance, lazily started. When the CLI
+  // is too old (no RPC mode) or the daemon dies, runCLI falls back to the
+  // one-shot print worker so a request still lands.
+  let daemon = null
+  let daemonBroken = false
+
+  const resident = (cli) => {
+    if (daemonBroken) return null
+    if (!daemon) {
+      if (!supportsRpc(cli)) return null
+      daemon = { worker: new RpcDaemon(cli), started: false, queue: Promise.resolve() }
+    }
+    return daemon
+  }
+
   const runCLI = async (messages, options = {}) => {
     if (options.signal?.aborted) throw new Error("the request was aborted")
     const cli = cliEntry()
     if (!cli) throw Object.assign(new Error("未找到本地 u1s1 CLI，请安装官方 CLI 并登录。"), { noCli: true })
-    const worker = new RpcWorker(cli)
     const { prompt, images } = packPrompt(messages, options)
+    const shared = resident(cli)
+    if (shared) {
+      // serialize prompts over the daemon; each prompt opens its own session
+      const run = shared.queue.then(() => shared.worker.prompt(prompt, images, options))
+      shared.queue = run.catch(() => {})
+      try {
+        return await run
+      } catch (error) {
+        // a dead daemon stays dead for this instance: print mode still works
+        daemonBroken = true
+        try { shared.worker.stop() } catch {}
+        if (options.signal?.aborted) throw error
+        return runPrintMode(cli, prompt, images, options)
+      }
+    }
+    return runPrintMode(cli, prompt, images, options)
+  }
+
+  const runPrintMode = async (cli, prompt, images, options) => {
+    const worker = new RpcWorker(cli)
     try {
       return await worker.prompt(prompt, images, options)
     } finally {
@@ -847,7 +1184,7 @@ export const U1s12apiPlugin = async (_input) => {
                       emit({ content })
                     }
                   } })
-                    .then(() => {
+                    .then((r) => {
                       if (cancelled) return
                       const result = output.finish()
                       if (result.content) {
@@ -856,7 +1193,10 @@ export const U1s12apiPlugin = async (_input) => {
                       }
                       for (const [index, call] of result.calls.entries()) emit({ tool_calls: [{ index, ...call }] })
                       if (result.calls.length) spoken += JSON.stringify(result.calls)
-                      emit({}, result.calls.length ? "tool_calls" : "stop", estimatedUsage(result, body, spoken, inputTokens))
+                      const usage = r.usage?.totalTokens != null
+                        ? { prompt_tokens: r.usage.input ?? 0, completion_tokens: r.usage.output ?? 0, total_tokens: (r.usage.input ?? 0) + (r.usage.output ?? 0) }
+                        : estimatedUsage(result, body, spoken, inputTokens)
+                      emit({}, result.calls.length ? "tool_calls" : "stop", usage)
                       controller.enqueue(encoder.encode("data: [DONE]\n\n"))
                       controller.close()
                     })
@@ -869,13 +1209,17 @@ export const U1s12apiPlugin = async (_input) => {
             const r = await runCLI(req.messages ?? [], { ...toolOptions, model: req.model, signal: init?.signal })
             const result = parseToolOutput(r.text, tools)
             const spoken = (result.content ?? "") + (result.calls.length ? JSON.stringify(result.calls) : "")
+            // RPC 常驻模式返回真实 usage；print 回退路径只有估算
+            const usage = r.usage?.totalTokens != null
+              ? { prompt_tokens: r.usage.input ?? 0, completion_tokens: r.usage.output ?? 0, total_tokens: (r.usage.input ?? 0) + (r.usage.output ?? 0) }
+              : estimatedUsage(result, body, spoken, estimateTokens(body))
             return textResponse(200, JSON.stringify({
               id: "chatcmpl-" + randomUUID().slice(0, 12),
               object: "chat.completion",
               created: Math.floor(Date.now() / 1000),
               model: r.model ?? req.model,
               choices: [{ index: 0, message: { role: "assistant", content: result.content || (result.calls.length ? null : ""), ...(result.calls.length ? { tool_calls: result.calls } : {}) }, finish_reason: result.calls.length ? "tool_calls" : "stop" }],
-              usage: estimatedUsage(result, body, spoken, estimateTokens(body)),
+              usage,
             }))
           },
         }
@@ -1056,6 +1400,9 @@ export const _internal = {
   packageGroups,
   nextBeijingMidnight,
   RpcWorker,
+  RpcDaemon,
+  cliVersion,
+  supportsRpc,
   bodyText,
   estimateTokens,
   estimateTextTokens,
