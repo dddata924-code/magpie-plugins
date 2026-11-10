@@ -25,11 +25,11 @@ test("the models that can stop thinking offer none, the others don't", async () 
 test("none is sent on to Factory as it was asked", async () => {
   const sent = []
   globalThis.fetch = async (url, init = {}) => {
-    if (new URL(String(url)).pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "u", orgId: "fac_D", email: "d@example.com", region: "" }))
+    if (new URL(String(url)).pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "u", orgId: "fac_D", email: "user@example.invalid", region: "" }))
     sent.push(init.body)
     return new Response('{"id":"ok"}')
   }
-  let saved = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3_600_000, accountId: "d@example.com", activeOrganizationId: "fac_D", region: "", premBaseHost: "" }
+  let saved = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3_600_000, accountId: "user@example.invalid", activeOrganizationId: "fac_D", region: "", premBaseHost: "" }
   const hooks = await FactoryAuthPlugin({ client: { auth: { set: async ({ body }) => (saved = body) } } })
   const l = await hooks.auth.loader(async () => saved)
   const res = await l.fetch("https://api.factory.ai/api/llm/o/v1/chat/completions", {

@@ -36,7 +36,7 @@ const until = async (predicate) => {
     await new Promise((r) => setTimeout(r, 5))
   }
 }
-const auth = () => ({ type: "oauth", access: `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200, sub: "synthetic-" + randomUUID() })).toString("base64url")}.fixture`, refresh: "", accountId: "fixture@example.invalid" })
+const auth = () => ({ type: "oauth", access: `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200, sub: "synthetic-" + randomUUID() })).toString("base64url")}.fixture`, refresh: "", accountId: "user@example.invalid" })
 const tools = [{ type: "function", function: { name: "audit_echo", description: "synthetic echo", parameters: { type: "object", properties: { value: { type: "string" } } } } }]
 const initial = (extra = {}) => ({ model: "fixture-model", tools, messages: [{ role: "system", content: "synthetic instructions" }, { role: "user", content: "perform two synthetic calls" }], ...extra })
 const continueWith = (chat, reply, values) => ({

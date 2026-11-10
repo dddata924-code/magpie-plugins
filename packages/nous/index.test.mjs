@@ -127,7 +127,7 @@ test("access_denied stops immediately and does not echo vendor descriptions", as
 })
 
 test("verification URLs are pinned before the host can open a browser", async () => {
-  for (const bad of ["https://attacker.invalid/activate", "http://portal.nousresearch.com/activate", "https://portal.nousresearch.com:8443/activate", "https://user@portal.nousresearch.com/activate", "javascript:alert(1)"]) {
+  for (const bad of ["https://attacker.invalid/activate", "http://portal.nousresearch.com/activate", "https://portal.nousresearch.com:8443/activate", "https://user@example.invalid/activate", "javascript:alert(1)"]) {
     const c = clock()
     await assert.rejects(createAuth({}, options(c, async () => json(device({ verification_uri_complete: bad })))).authorize(), /invalid_verification_uri/)
   }
@@ -308,7 +308,7 @@ test("a stale snapshot follows multiple rotations without redeeming an old token
 
 test("inference URL metadata cannot grant authority to an arbitrary recipient", () => {
   assert.equal(inferenceURL(WELCOME + "/"), WELCOME)
-  for (const url of ["http://inference-api.nousresearch.com/v1", "https://evil.invalid/v1", INFERENCE + "?token=x", INFERENCE + "/other", "https://user@inference-api.nousresearch.com/v1", "https://inference-api.nousresearch.com:8443/v1"]) assert.equal(inferenceURL(url), INFERENCE)
+  for (const url of ["http://inference-api.nousresearch.com/v1", "https://evil.invalid/v1", INFERENCE + "?token=x", INFERENCE + "/other", "https://user@example.invalid/v1", "https://inference-api.nousresearch.com:8443/v1"]) assert.equal(inferenceURL(url), INFERENCE)
 })
 
 test("saved-state corruption is not an empty account or a successful parse", async () => {

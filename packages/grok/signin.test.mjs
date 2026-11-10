@@ -17,8 +17,8 @@ afterEach(() => (globalThis.fetch = real))
 // a CLI home whose token is good for a day, so nothing renews it
 const home = mkdtempSync(join(tmpdir(), "grok-signin-"))
 afterAll(() => rmSync(home, { recursive: true, force: true }))
-writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key: "tok", email: "g@x.ai", expires_at: new Date(Date.now() + 24 * 3600_000).toISOString() } }))
-const auth = { type: "oauth", refresh: home, access: "tok", expires: 0, accountId: "g@x.ai" }
+writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key: "tok", email: "user@example.invalid", expires_at: new Date(Date.now() + 24 * 3600_000).toISOString() } }))
+const auth = { type: "oauth", refresh: home, access: "tok", expires: 0, accountId: "user@example.invalid" }
 
 async function chat(reply) {
   let sent = 0

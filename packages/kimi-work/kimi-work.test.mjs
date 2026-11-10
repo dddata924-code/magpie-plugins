@@ -111,7 +111,7 @@ test('the Work token goes only to the official Work chat endpoint', async () => 
   const p = I.createPlugin({readSession: () => session, fetchImpl: async () => {called++; return new Response('{}');}});
   const loader = await p.auth.loader(async () => auth);
   for (const url of ['https://example.invalid/coding/v1/chat/completions', I.BASE + '/models',
-    I.BASE + '/chat/completions?x=1', 'https://user:pw@agent-gw.kimi.com/coding/v1/chat/completions']) {
+    I.BASE + '/chat/completions?x=1', 'https://user:user@example.invalid/coding/v1/chat/completions']) {
     await expect(loader.fetch(url, {method: 'POST', body: '{}'})).rejects.toThrow('仅接受官方');
   }
   await expect(loader.fetch(I.BASE + '/chat/completions', {method: 'GET'})).rejects.toThrow('仅接受官方');

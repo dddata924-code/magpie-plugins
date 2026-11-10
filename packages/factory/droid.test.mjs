@@ -21,7 +21,7 @@ async function loaded(auth) {
   const sent = []
   globalThis.fetch = async (url, init = {}) => {
     const u = new URL(String(url))
-    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: "fac_K", email: "k@example.com", region: "" }))
+    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: "fac_K", email: "user@example.invalid", region: "" }))
     sent.push({ url: String(url), headers: new Headers(init.headers), body: init.body })
     return new Response('{"id":"ok"}')
   }
@@ -41,7 +41,7 @@ const signedIn = {
   access: "tok",
   refresh: "r",
   expires: Date.now() + 3_600_000,
-  accountId: "d@example.com",
+  accountId: "user@example.invalid",
   activeOrganizationId: "fac_D",
   region: "",
   premBaseHost: "",
@@ -124,7 +124,7 @@ test("an API key account is the bearer, with no org and no renewal", async () =>
   globalThis.fetch = async (url, init = {}) => {
     const u = new URL(String(url))
     seen.push({ host: u.host, path: u.pathname, headers: new Headers(init.headers) })
-    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: "fac_K", email: "k@example.com", region: "eu" }))
+    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: "fac_K", email: "user@example.invalid", region: "eu" }))
     return new Response('{"id":"ok"}')
   }
   let saved = { type: "api", key: "fk-test-0123456789" }
@@ -148,7 +148,7 @@ test("an API key account is the bearer, with no org and no renewal", async () =>
     expect(r.headers.get("x-factory-client")).toBe("cli")
   }
   expect(seen.some((s) => s.host === "api.workos.com")).toBe(false)
-  expect(saved).toEqual({ type: "api", key: "fk-test-0123456789", metadata: { email: "k@example.com", userId: "user_k", region: "eu", premBaseHost: "" } })
+  expect(saved).toEqual({ type: "api", key: "fk-test-0123456789", metadata: { email: "user@example.invalid", userId: "user_k", region: "eu", premBaseHost: "" } })
 
   // a 403 to a key isn't mended with an org: Factory's answer, explained
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "nope" } }), { status: 403 })
@@ -167,7 +167,7 @@ test("a key account's usage reads the limits with the key", async () => {
     }
     return new Response("{}", { status: 500 })
   }
-  const auth = { type: "api", key: "fk-test-0123456789", metadata: { email: "k@example.com", region: "", premBaseHost: "" } }
+  const auth = { type: "api", key: "fk-test-0123456789", metadata: { email: "user@example.invalid", region: "", premBaseHost: "" } }
   const hooks = await FactoryAuthPlugin({ client: { auth: { set: async () => {} } } })
   const u = await hooks.auth.usage(async () => auth)
   expect(u.error).toBeUndefined()

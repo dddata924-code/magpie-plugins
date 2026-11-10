@@ -13,9 +13,9 @@ const home = mkdtempSync(join(tmpdir(), "grok-x-search-"))
 afterAll(() => rmSync(home, { recursive: true, force: true }))
 const expires = Date.now() + 24 * 3600_000
 writeFileSync(join(home, "auth.json"), JSON.stringify({
-  test: { key: "test-token", email: "test@example.invalid", expires_at: new Date(expires).toISOString() },
+  test: { key: "test-token", email: "user@example.invalid", expires_at: new Date(expires).toISOString() },
 }))
-const auth = { type: "oauth", refresh: home, access: "test-token", expires, accountId: "test@example.invalid" }
+const auth = { type: "oauth", refresh: home, access: "test-token", expires, accountId: "user@example.invalid" }
 const fn = { type: "function", name: "read_file", parameters: { type: "object", properties: {} } }
 const rewrite = (body) => JSON.parse(_internal.rewrite(JSON.stringify(body), true))
 

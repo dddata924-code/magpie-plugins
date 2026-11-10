@@ -59,7 +59,7 @@ accounts) or one account has allowance again:
 
 ```sh
 magpie quota wait codex                  # exits 0 once there is allowance
-magpie quota wait me@example.com --timeout 6h
+magpie quota wait user@example.invalid --timeout 6h
 ```
 
 Exit codes: 0 allowance again, 1 timed out, 2 unknown name, 130 Ctrl+C. It

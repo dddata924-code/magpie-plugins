@@ -22,7 +22,7 @@ afterEach(() => (globalThis.fetch = offline))
 const PROFILE = "arn:aws:codewhisperer:us-east-1:111111111111:profile/TEST"
 const REFRESH = "https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken"
 const signIn = (over = {}) => ({ type: "oauth", access: "old", refresh: "r1", expires: Date.now() + 5 * 60_000, method: "social",
-  region: "us-east-1", profileArn: PROFILE, accountId: "me@example.com", ...over })
+  region: "us-east-1", profileArn: PROFILE, accountId: "user@example.invalid", ...over })
 
 // kiro answers the refresh with the given status (and a new token when
 // 200), and every request to Kiro's API with a 500; it notes both.

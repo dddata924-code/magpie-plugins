@@ -112,7 +112,7 @@ const LINK = "https://accounts.x.ai/oauth2/device?user_code=AB12-CD34"
 const later = new Date(Date.now() + 24 * 3600_000).toISOString()
 const scope = "https://auth.x.ai::b1a00492-073a-47ea-816f-4c329264a828"
 const jwt = (claims) => ["e30", Buffer.from(JSON.stringify(claims)).toString("base64url"), "sig"].join(".")
-const theirs = { [scope]: { key: "cli-tok", email: "cli@x.ai", user_id: "u-cli", expires_at: later } }
+const theirs = { [scope]: { key: "cli-tok", email: "user@example.invalid", user_id: "u-cli", expires_at: later } }
 
 // finish runs a login that prints the link, writes what (if anything) where
 // grok 1.0.62 does, says it signed in and exits 0. With cli, the CLI's own
@@ -167,7 +167,7 @@ test.skipIf(process.platform === "win32")("a login that leaves nothing says wher
 })
 
 test.skipIf(process.platform === "win32")("one that leaves a file with no token says what it holds", async () => {
-  const { r } = await finish({ what: { [scope]: { email: "g@x.ai" } } })
+  const { r } = await finish({ what: { [scope]: { email: "user@example.invalid" } } })
   expect(r.type).toBe("failed")
   expect(r.error).toContain(`has ${scope}, none with a token`)
 })
@@ -176,8 +176,8 @@ test.skipIf(process.platform === "win32")("one that leaves a file with no token 
 // without it, so the sign-in lands where the plugin reads it
 test.skipIf(process.platform === "win32")("GROK_AUTH_PATH doesn't take the sign-in elsewhere", async () => {
   const away = join(mkdtempSync(join(dir, "away-")), "auth.json")
-  const { r, cliHome } = await finish({ what: { [scope]: { key: "tok", email: "g@x.ai", expires_at: later } }, env: { GROK_AUTH_PATH: away } })
+  const { r, cliHome } = await finish({ what: { [scope]: { key: "tok", email: "user@example.invalid", expires_at: later } }, env: { GROK_AUTH_PATH: away } })
   expect(r.type).toBe("success")
-  expect(r.accountId).toBe("g@x.ai")
+  expect(r.accountId).toBe("user@example.invalid")
   expect(r.refresh).toBe(cliHome)
 })

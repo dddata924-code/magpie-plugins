@@ -35,7 +35,7 @@ afterEach(() => {
   rmSync(cliDir(), { recursive: true, force: true })
 })
 
-const EMAIL = "same@example.com"
+const EMAIL = "user@example.invalid"
 const GOOGLE = EMAIL + " (Google)"
 const GITHUB = EMAIL + " (GitHub)"
 const PROFILE = "arn:aws:codewhisperer:us-east-1:111111111111:profile/TEST"

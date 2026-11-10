@@ -10,7 +10,7 @@ import { DevinAuthPlugin, _internal } from "./index.mjs"
 const real = globalThis.fetch
 afterEach(() => (globalThis.fetch = real))
 
-const auth = { type: "api", key: "devin-key", metadata: { email: "d@x.dev", plan: "Teams" } }
+const auth = { type: "api", key: "devin-key", metadata: { email: "user@example.invalid", plan: "Teams" } }
 
 const status = (plan = {}) => ({
   userStatus: {
@@ -111,7 +111,7 @@ test("usage enriches an older sign-in with its organization and keeps each org's
       return Response.json({
         userStatus: {
           name: "sky",
-          email: "m@x.dev",
+          email: "user@example.invalid",
           teamId: "devin-team$account-1",
           teamsTier: "TEAMS_TIER_DEVIN_MAX",
           planStatus: {
@@ -132,7 +132,7 @@ test("usage enriches an older sign-in with its organization and keeps each org's
     return Response.json({
       userStatus: {
         name: "sky",
-        email: "m@x.dev",
+        email: "user@example.invalid",
         teamId: "devin-team$account-2",
         teamsTier: "TEAMS_TIER_DEVIN_MAX",
         planStatus: {
@@ -150,8 +150,8 @@ test("usage enriches an older sign-in with its organization and keeps each org's
       },
     })
   }
-  const u1 = await hooks.auth.usage(async () => ({ type: "api", key: "key-org-1", metadata: { email: "m@x.dev", plan: "Devin Max" } }))
-  const u2 = await hooks.auth.usage(async () => ({ type: "api", key: "key-org-2", metadata: { email: "m@x.dev · lab", plan: "Devin Max", orgId: "org_2", teamId: "devin-team$account-2" } }))
+  const u1 = await hooks.auth.usage(async () => ({ type: "api", key: "key-org-1", metadata: { email: "user@example.invalid", plan: "Devin Max" } }))
+  const u2 = await hooks.auth.usage(async () => ({ type: "api", key: "key-org-2", metadata: { email: "user@example.invalid · lab", plan: "Devin Max", orgId: "org_2", teamId: "devin-team$account-2" } }))
   expect(u1.windows.map((w) => w.used)).toEqual([20, 40])
   expect(u2.windows.map((w) => w.used)).toEqual([75, 90])
   expect(saved).toEqual([
@@ -160,7 +160,7 @@ test("usage enriches an older sign-in with its organization and keeps each org's
       body: {
         type: "api",
         key: "key-org-1",
-        metadata: { email: "m@x.dev · opt", plan: "Devin Max", orgId: "org_1", teamId: "devin-team$account-1" },
+        metadata: { email: "user@example.invalid · opt", plan: "Devin Max", orgId: "org_1", teamId: "devin-team$account-1" },
       },
     },
   ])

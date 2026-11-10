@@ -12,7 +12,7 @@ afterEach(() => f?.close())
 
 const STATUS = "/minimax-cloud/api/v1/signin/status"
 const CLAIM = "/minimax-cloud/api/v1/signin/claim"
-const auth = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3600_000, accountId: "a@example.com", realUserID: "u-42" }
+const auth = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3600_000, accountId: "user@example.invalid", realUserID: "u-42" }
 
 const day = (over = {}) => ({ day_no: 1, points: 10, status: 2, is_today: true, ...over })
 
@@ -105,7 +105,7 @@ test("the international check-in is asked as the account, not as user 0", async 
 
 test("an account saved without its user id has it looked up before the check-in", async () => {
   f = fakeMiniMax()
-  f.route("GET /v1/api/user/info", () => json({ statusInfo: { code: 0 }, data: { userInfo: { realUserID: "u-42", userEmail: "a@example.com" } } }))
+  f.route("GET /v1/api/user/info", () => json({ statusInfo: { code: 0 }, data: { userInfo: { realUserID: "u-42", userEmail: "user@example.invalid" } } }))
   f.route("GET " + STATUS, (r) => asTheAccount(r) ?? json({ base_resp: { status_code: 0 }, data: { days: week(1, { status: 3 }) } }))
   const plugin = await MiniMaxCodeGlobalAuthPlugin({ client: { auth: { set: async () => {} } } })
   const { realUserID, ...noID } = auth

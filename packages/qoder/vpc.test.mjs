@@ -71,7 +71,7 @@ test("an instance is read from its name or any of its hosts, as Qoder CN's CLI r
   for (const v of ["acme", " ACME ", "acme.vpc.qoder.com.cn", "acme-openapi.vpc.qoder.com.cn", "acme-gateway.vpc.qoder.com.cn", "https://acme.vpc.qoder.com.cn", "https://acme.vpc.qoder.com.cn/"])
     expect([v, _internal.vpcInstance(v, d)]).toEqual([v, "acme"])
   expect(_internal.vpcInstance("my-corp-01", d)).toBe("my-corp-01")
-  for (const v of ["", "  ", "http://acme.vpc.qoder.com.cn", "https://acme.vpc.qoder.com.cn/x", "https://acme.vpc.qoder.com.cn?a=1", "https://u:p@acme.vpc.qoder.com.cn", "https://acme.vpc.qoder.com.cn:8443", "10.0.0.1", "acme.example.com", "evil.com/acme.vpc.qoder.com.cn", "-acme", "acme-", "ac_me", "a.b.vpc.qoder.com.cn"])
+  for (const v of ["", "  ", "http://acme.vpc.qoder.com.cn", "https://acme.vpc.qoder.com.cn/x", "https://acme.vpc.qoder.com.cn?a=1", "https://u:user@example.invalid", "https://acme.vpc.qoder.com.cn:8443", "10.0.0.1", "acme.example.com", "evil.com/acme.vpc.qoder.com.cn", "-acme", "acme-", "ac_me", "a.b.vpc.qoder.com.cn"])
     expect([v, _internal.vpcInstance(v, d)]).toEqual([v, undefined])
   // qoder.com has no VPC
   expect(_internal.vpcInstance("acme", undefined)).toBeUndefined()
@@ -121,7 +121,7 @@ test("a VPC sign-in opens the instance's page and polls, trades and reads the us
     if (at === OPENAPI + "/api/v1/userinfo") {
       expect(req.headers.get("authorization")).toBe("Bearer dt-vpc")
       // the reporter's normalized user info
-      return json({ id: "u-vpc", username: "alice", name: "Alice", email: "alice@corp.example", avatar: "https://x/a.png", orgId: "org-1", orgName: "Corp", isPrivacyPolicyModifiable: true })
+      return json({ id: "u-vpc", username: "alice", name: "Alice", email: "user@example.invalid", avatar: "https://x/a.png", orgId: "org-1", orgName: "Corp", isPrivacyPolicyModifiable: true })
     }
     return new Response("", { status: 404 })
   }
@@ -138,9 +138,9 @@ test("a VPC sign-in opens the instance's page and polls, trades and reads the us
     refresh: "drt-vpc",
     deviceChat: true,
     uid: "u-vpc",
-    email: "alice@corp.example",
+    email: "user@example.invalid",
     name: "Alice",
-    accountId: "alice@corp.example (acme)",
+    accountId: "user@example.invalid (acme)",
     vpc: "acme",
     deviceToken: "dt-vpc",
     deviceRefresh: "drt-vpc",
@@ -192,7 +192,7 @@ const signedIn = (over = {}) => ({
   refresh: "drt-vpc",
   expires: Date.now() + 3_600_000,
   deviceChat: true,
-  accountId: "alice@corp.example (acme)",
+  accountId: "user@example.invalid (acme)",
   uid: "u-vpc",
   machineId: "m-vpc",
   deviceToken: "dt-vpc",
@@ -243,7 +243,7 @@ test("public and VPC accounts with the same uid keep separate model listings", a
       return sse({ choices: [{ index: 0, delta: { content: "OK" }, finish_reason: "stop" }] })
     return new Response("", { status: 404 })
   }
-  const publicAccount = store(signedIn({ vpc: undefined, accountId: "alice@corp.example" }))
+  const publicAccount = store(signedIn({ vpc: undefined, accountId: "user@example.invalid" }))
   const enterpriseAccount = store(signedIn())
   const hooks = await QoderCNAuthPlugin({ client: publicAccount.client })
   const publicLoader = await hooks.auth.loader(publicAccount.get)
@@ -270,7 +270,7 @@ test("public and VPC accounts with the same uid keep separate renewal marks", as
       return sse({ choices: [{ index: 0, delta: { content: "OK" }, finish_reason: "stop" }] })
     return new Response("", { status: 404 })
   }
-  const publicAccount = store(signedIn({ vpc: undefined, accountId: "alice@corp.example", expires: Date.now() + 60_000 }))
+  const publicAccount = store(signedIn({ vpc: undefined, accountId: "user@example.invalid", expires: Date.now() + 60_000 }))
   const enterpriseAccount = store(signedIn())
   const hooks = await QoderCNAuthPlugin({ client: publicAccount.client })
   await hooks.provider.models({ models: {} }, { auth: publicAccount.auth() })

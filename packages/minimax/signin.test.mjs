@@ -10,7 +10,7 @@ import { fakeMiniMax, json, jwtOf } from "./fake.mjs"
 let f
 afterEach(() => f?.close())
 
-const userInfo = () => json({ statusInfo: { code: 0 }, data: { userInfo: { realUserID: "u-42", userEmail: "a@example.com", name: "Ann" } } })
+const userInfo = () => json({ statusInfo: { code: 0 }, data: { userInfo: { realUserID: "u-42", userEmail: "user@example.invalid", name: "Ann" } } })
 
 test("the device flow signs in, the account named by its email", async () => {
   f = fakeMiniMax()
@@ -34,7 +34,7 @@ test("the device flow signs in, the account named by its email", async () => {
   const got = await a.callback()
   expect(got.type).toBe("success")
   expect(got.refresh).toBe("r-1")
-  expect(got.accountId).toBe("a@example.com")
+  expect(got.accountId).toBe("user@example.invalid")
   expect(got.uid).toBe("u-42")
   expect(got.realUserID).toBe("u-42")
   expect(got.expires).toBeGreaterThan(Date.now() + 3500_000)

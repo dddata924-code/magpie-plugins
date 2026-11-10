@@ -367,7 +367,7 @@ export function adcDirectoryFor(account, root = adcRoot()) {
   return join(root, `adc-${adcSlug(account)}`)
 }
 
-// A slug is readable, not unique: a.b@x.com and a-b@x.com both become
+// A slug is readable, not unique: user@example.invalid and user@example.invalid both become
 // a-b-x-com, and one directory holding the other account's ADC is a sign-in
 // refused for an account that was never here. So a slug another account
 // already owns gets a short hash of the full address appended; the first

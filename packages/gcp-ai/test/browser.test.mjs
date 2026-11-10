@@ -105,16 +105,16 @@ test("the signed-in account is only read from the Console's own keyed field", { 
   let browser
   try {
     browser = await openBrowser({ launchArgs, profile: join(directory, "profile"), headless: true })
-    await routeAll(browser.page, async (request) => request.fulfill({ body: '<!doctype html><p>Contact billing@example.com or owner@example.com</p>' }))
+    await routeAll(browser.page, async (request) => request.fulfill({ body: '<!doctype html><p>Contact user@example.invalid or user@example.invalid</p>' }))
     await browser.page.goto("https://console.cloud.google.com/")
     assert.equal(await extractAccount(browser.page, { timeout: 1000 }), undefined)
     // The keyed field arrives with the Console's own payload, a moment after
     // the document it is in.
     await routeAll(browser.page, async (request) => request.fulfill({
-      body: '<!doctype html><p>contact billing@example.com</p><script>setTimeout(()=>{const s=document.createElement("script");s.textContent=\'var a={"oPEP7c":"me@example.com"}\';document.head.appendChild(s)},500)</script>',
+      body: '<!doctype html><p>contact user@example.invalid</p><script>setTimeout(()=>{const s=document.createElement("script");s.textContent=\'var a={"oPEP7c":"user@example.invalid"}\';document.head.appendChild(s)},500)</script>',
     }))
     await browser.page.goto("https://console.cloud.google.com/")
-    assert.equal(await extractAccount(browser.page, { timeout: 5000 }), "me@example.com")
+    assert.equal(await extractAccount(browser.page, { timeout: 5000 }), "user@example.invalid")
   } finally {
     if (browser) await browser.close()
     await rm(directory, { recursive: true, force: true })
@@ -184,7 +184,7 @@ test("Chrome credits scrape handles pagination, keeps cache isolated, and force 
         </tr></thead><tbody><tr><td>Benefit one</td><td>Available</td><td>$10.00</td><td>$10.00</td><td>one</td></tr></tbody></table>
         <button aria-label="Next page" onclick="document.querySelector('tbody').innerHTML='<tr><td>Benefit two</td><td>Available</td><td>$2.07</td><td>$10.00</td><td>two</td></tr>';this.disabled=true">Next</button>` })
     })
-    const options = { profile, browser, billingAccount: "AAAAAA-BBBBBB-CCCCCC", account: "first@example.com" }
+    const options = { profile, browser, billingAccount: "AAAAAA-BBBBBB-CCCCCC", account: "user@example.invalid" }
     const first = await fetchCredits(options)
     assert.equal(first.remaining, 12.07)
     assert.equal(first.original, 20)
@@ -198,7 +198,7 @@ test("Chrome credits scrape handles pagination, keeps cache isolated, and force 
     assert.equal(usageOf(forced).windows[0].amount, 7.93)
     const different = await fetchCredits({ ...options, billingAccount: "AAAAAA-BBBBBB-DDDDDD" })
     assert.equal(different.cached, false)
-    const otherAccount = await fetchCredits({ ...options, account: "second@example.com" })
+    const otherAccount = await fetchCredits({ ...options, account: "user@example.invalid" })
     assert.equal(otherAccount.cached, false)
   } finally {
     if (browser) await browser.close()

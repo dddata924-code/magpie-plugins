@@ -17,8 +17,8 @@ afterEach(() => (globalThis.fetch = real))
 const home = mkdtempSync(join(tmpdir(), "grok-usage-"))
 afterAll(() => rmSync(home, { recursive: true, force: true }))
 const expires = new Date(Date.now() + 24 * 3600_000).toISOString()
-writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key: "tok-2", email: "g@x.ai", expires_at: expires } }))
-const auth = { type: "oauth", refresh: home, access: "tok-1", expires: 0, accountId: "g@x.ai" }
+writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key: "tok-2", email: "user@example.invalid", expires_at: expires } }))
+const auth = { type: "oauth", refresh: home, access: "tok-1", expires: 0, accountId: "user@example.invalid" }
 
 async function run(a, reply) {
   const seen = []
@@ -52,7 +52,7 @@ test("SuperGrok's week and its on-demand spending; the CLI's newer token is kept
     ],
   })
   expect(seen).toEqual([{ url: "https://cli-chat-proxy.grok.com/v1/billing?format=credits", headers: { Authorization: "Bearer tok-2", Accept: "application/json" } }])
-  expect(saved).toEqual([{ path: { id: "grok" }, body: { ...auth, access: "tok-2", expires: Date.parse(expires), accountId: "g@x.ai" } }])
+  expect(saved).toEqual([{ path: { id: "grok" }, body: { ...auth, access: "tok-2", expires: Date.parse(expires), accountId: "user@example.invalid" } }])
 })
 
 test("a month with no on-demand cap is one window", async () => {

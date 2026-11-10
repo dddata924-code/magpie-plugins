@@ -73,7 +73,7 @@ test("a refused token with no Grok Build to renew it says so", async () => {
   const { tmpdir } = await import("node:os")
   const { join } = await import("node:path")
   const home = mkdtempSync(join(tmpdir(), "grok-models-"))
-  writeFileSync(join(home, "auth.json"), JSON.stringify({ "https://auth.x.ai": { key: "revoked", expires_at: "2099-01-01T00:00:00Z", email: "a@x.ai" } }))
+  writeFileSync(join(home, "auth.json"), JSON.stringify({ "https://auth.x.ai": { key: "revoked", expires_at: "2099-01-01T00:00:00Z", email: "user@example.invalid" } }))
   const [path, h, fetch0] = [process.env.PATH, process.env.HOME, globalThis.fetch]
   process.env.PATH = ""
   process.env.HOME = home
@@ -97,7 +97,7 @@ test("a window the models hook offers reaches Grok as that window", async () => 
   const { tmpdir } = await import("node:os")
   const { join } = await import("node:path")
   const home = mkdtempSync(join(tmpdir(), "grok-window-"))
-  writeFileSync(join(home, "auth.json"), JSON.stringify({ "https://auth.x.ai": { key: "tok", expires_at: "2099-01-01T00:00:00Z", email: "a@x.ai" } }))
+  writeFileSync(join(home, "auth.json"), JSON.stringify({ "https://auth.x.ai": { key: "tok", expires_at: "2099-01-01T00:00:00Z", email: "user@example.invalid" } }))
   const [path, fetch0] = [process.env.PATH, globalThis.fetch]
   process.env.PATH = ""
   const sent = []
@@ -109,7 +109,7 @@ test("a window the models hook offers reaches Grok as that window", async () => 
     return new Response("{}")
   }
   try {
-    const auth = { type: "oauth", refresh: home, access: "tok", expires: Date.parse("2099-01-01T00:00:00Z"), accountId: "a@x.ai" }
+    const auth = { type: "oauth", refresh: home, access: "tok", expires: Date.parse("2099-01-01T00:00:00Z"), accountId: "user@example.invalid" }
     const hooks = await GrokAuthPlugin({ client: { auth: { set: async () => {} } } })
     const models = await hooks.provider.models({ id: "grok", models: {} }, { auth })
     expect(Object.keys(models)).toEqual(["grok-4.7", "grok-4.7@500k"])

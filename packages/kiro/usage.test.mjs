@@ -24,7 +24,7 @@ afterEach(() => (globalThis.fetch = offline))
 const PROFILE = "arn:aws:codewhisperer:us-east-1:111111111111:profile/TEST"
 const auth = { type: "oauth", access: "test-access", refresh: "test-refresh", expires: Date.now() + 3600_000, method: "social",
   region: "us-east-1", profileArn: PROFILE }
-const FREE = { subscriptionInfo: { subscriptionTitle: "KIRO FREE" }, userInfo: { email: "me@example.com" },
+const FREE = { subscriptionInfo: { subscriptionTitle: "KIRO FREE" }, userInfo: { email: "user@example.invalid" },
   usageBreakdownList: [{ displayName: "Credit", displayNamePlural: "Credits", currentUsageWithPrecision: 12.5, usageLimitWithPrecision: 50,
     nextDateReset: 1790000000, freeTrialInfo: { freeTrialStatus: "ACTIVE", currentUsageWithPrecision: 100, usageLimitWithPrecision: 500,
       freeTrialExpiry: 1791000000 } }] }
@@ -43,7 +43,7 @@ test("a free account's credits and trial", async () => {
   const calls = answer(200, FREE)
   expect(await usage()).toEqual({
     plan: "Kiro Free",
-    user: "me@example.com",
+    user: "user@example.invalid",
     windows: [
       { name: "Free trial", used: 20, resetsAt: new Date(1791000000_000).toISOString(), display: "100 / 500" },
       { name: "Credits", used: 25, resetsAt: new Date(1790000000_000).toISOString(), display: "12.5 / 50", span: 30 * 24 * 3600 },

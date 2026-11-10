@@ -30,7 +30,7 @@ const mock = () => {
 const header = (i, name) => seen[i]?.headers[name]
 
 // a signed-in account on the enterprise domain
-const entCred = (domain = "acme.example.com") => ({ type: "oauth", uid: "u1", email: "alice@acme.example.com", name: "Alice", machineId: "m1", access: "a", refresh: "r", expires: Date.now() + 3_600_000, deviceChat: true, deviceToken: "dt", deviceRefresh: "dtr", vpc: domain, enterpriseHost: domain })
+const entCred = (domain = "acme.example.com") => ({ type: "oauth", uid: "u1", email: "user@example.invalid", name: "Alice", machineId: "m1", access: "a", refresh: "r", expires: Date.now() + 3_600_000, deviceChat: true, deviceToken: "dt", deviceRefresh: "dtr", vpc: domain, enterpriseHost: domain })
 
 test("the enterprise sign-in asks for a domain and runs on it, with no redirect_uri", async () => {
   const { ent } = await load()
@@ -48,7 +48,7 @@ test("the enterprise sign-in asks for a domain and runs on it, with no redirect_
 test("the domain input refuses loopback, intranet, ports, paths and IPs", async () => {
   const { ent } = await load()
   const validate = ent.auth.methods[0].prompts.find((p) => p.key === "domain").validate
-  for (const bad of ["not a domain", "1.2.3.4", "localhost", "foo.localhost", "foo.local", "foo.internal", "https://a.example:8443", "https://a.example/path", "http://a.example", "https://u:p@a.example"]) {
+  for (const bad of ["not a domain", "1.2.3.4", "localhost", "foo.localhost", "foo.local", "foo.internal", "https://a.example:8443", "https://a.example/path", "http://a.example", "https://u:user@example.invalid"]) {
     expect(validate(bad)).toBeString()
   }
   for (const good of ["your-company.vpc.qwenwork.cn", "https://your-company.vpc.qwenwork.cn", "https://your-company.vpc.qwenwork.cn/"]) {
@@ -75,12 +75,12 @@ test("the enterprise sign-in completes on the enterprise's own host, naming the 
   const restore = mock()
   answer = async (url) => {
     if (url.includes("/api/v1/deviceToken/poll")) return new Response(JSON.stringify({ token: "dt", refresh_token: "dtr", user_id: "u1" }), { status: 200 })
-    if (url.includes("/api/v1/adapter/user/account-context")) return new Response(JSON.stringify({ data: { user: { id: "u1", name: "Alice", email: "alice@acme.example.com" } } }), { status: 200 })
+    if (url.includes("/api/v1/adapter/user/account-context")) return new Response(JSON.stringify({ data: { user: { id: "u1", name: "Alice", email: "user@example.invalid" } } }), { status: 200 })
     return new Response("{}", { status: 404 })
   }
   try {
     const acct = await flow.callback()
-    expect(acct.accountId).toBe("alice@acme.example.com (acme.example.com)")
+    expect(acct.accountId).toBe("user@example.invalid (acme.example.com)")
     expect(acct.enterpriseHost).toBe("acme.example.com")
     expect(seen.every((r) => r.url.startsWith("https://acme.example.com/"))).toBe(true)
     expect(seen.some((r) => r.url.includes("/api/v1/me/jobToken"))).toBe(false) // deviceOnly: no job token
@@ -334,7 +334,7 @@ test("a queued chat's status request is signed for the site", async () => {
 // #385: a public-cloud personal account's account-context has quota total
 // and used null, only remaining; the pools are in /api/v1/adapter/user/wallets.
 // These are the reporter's bytes.
-const pubCred = () => ({ type: "oauth", uid: "u1", email: "bob@example.com", name: "Bob", machineId: "m1", access: "a", refresh: "r", expires: Date.now() + 3_600_000, deviceChat: true, deviceToken: "dt", deviceRefresh: "dtr" })
+const pubCred = () => ({ type: "oauth", uid: "u1", email: "user@example.invalid", name: "Bob", machineId: "m1", access: "a", refresh: "r", expires: Date.now() + 3_600_000, deviceChat: true, deviceToken: "dt", deviceRefresh: "dtr" })
 const WALLETS = { active_wallets: { wallets: [{ balance: 98.6035, valid_to: "2026-10-26T00:00:00+08:00" }, { balance: 2000, valid_to: "2026-12-18T19:50:23.14+08:00" }] }, daily_credits: { total_balance: 98.6035 }, longterm_credits: { total_balance: 2000 }, monthly_credits: { total_balance: 0 } }
 const PERSONAL_QUOTA = { total: null, used: null, remaining: 2098.6336, exceeded: false }
 

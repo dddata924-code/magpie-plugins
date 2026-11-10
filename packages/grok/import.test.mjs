@@ -43,7 +43,7 @@ function cpaFile(over = {}) {
       expires_in: 3600,
       last_refresh: new Date(Date.now() - 60_000).toISOString(),
       disabled: false,
-      email: "someone@example.com",
+      email: "user@example.invalid",
       sub: "user-1",
       token_type: "Bearer",
       base_url: "https://cli-chat-proxy.grok.com/v1",
@@ -99,7 +99,7 @@ test("an enabled CPA xAI account becomes the sign-in of a home of the plugin's o
   const r = await done()
   expect(r.type).toBe("success")
   expect(r.access).toBe(goodToken)
-  expect(r.accountId).toBe("someone@example.com")
+  expect(r.accountId).toBe("user@example.invalid")
   expect(dirname(r.refresh)).toBe(join(config, "opencode-grok-auth"))
   expect(basename(r.refresh)).not.toBe("")
 
@@ -112,7 +112,7 @@ test("an enabled CPA xAI account becomes the sign-in of a home of the plugin's o
   expect(all[SCOPE].oidc_issuer).toBe("https://auth.x.ai")
   expect(all[SCOPE].oidc_client_id).toBe(CLIENT_ID)
   expect(all[SCOPE].user_id).toBe("user-1")
-  expect(all[SCOPE].email).toBe("someone@example.com")
+  expect(all[SCOPE].email).toBe("user@example.invalid")
   // Windows has no 0600, so only the mode a POSIX home gives is checked
   if (process.platform !== "win32") expect(statSync(join(r.refresh, "auth.json")).mode & 0o777).toBe(0o600)
 

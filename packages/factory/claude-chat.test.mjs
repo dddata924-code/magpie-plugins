@@ -36,11 +36,11 @@ async function loaded() {
   const sent = []
   globalThis.fetch = async (url, init = {}) => {
     const u = new URL(String(url))
-    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: "fac_K", email: "k@example.com", region: "" }))
+    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: "fac_K", email: "user@example.invalid", region: "" }))
     sent.push({ url: String(url), headers: new Headers(init.headers), body: init.body })
     return new Response('{"id":"ok"}')
   }
-  let saved = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3_600_000, accountId: "d@example.com", activeOrganizationId: "fac_D", region: "" }
+  let saved = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3_600_000, accountId: "user@example.invalid", activeOrganizationId: "fac_D", region: "" }
   const hooks = await FactoryAuthPlugin({ client: { auth: { set: async ({ body }) => (saved = body) } } })
   const l = await hooks.auth.loader(async () => saved)
   return async (url, body) => {

@@ -31,7 +31,7 @@ function zcodeHas(store, setting = {}) {
 const KEY = "account-provider:coding-plan:account:zai-individual-coding-plan:account:u1:api-key"
 
 test("the sign-in takes ZCode's account and key, and follows ZCode after", async () => {
-  zcodeHas({ [KEY]: "id1.secret1", zcodejwttoken: "Bearer j1", "oauth:zai:user_info": JSON.stringify({ email: "ada@phone.local" }) })
+  zcodeHas({ [KEY]: "id1.secret1", zcodejwttoken: "Bearer j1", "oauth:zai:user_info": JSON.stringify({ email: "user@example.invalid" }) })
   const hooks = await ZCodeAuthPlugin({ client: {} })
   const m = hooks.auth.methods.find((x) => x.label === "ZCode app's sign-in")
   const got = await (await m.authorize()).callback()
@@ -43,7 +43,7 @@ test("the sign-in takes ZCode's account and key, and follows ZCode after", async
   expect(_internal.stateOf(auth)).toMatchObject({ key: "id1.secret1", jwt: "j1", base: "https://api.z.ai/api/anthropic" })
 
   // ZCode signs in again with a new key
-  const ada = JSON.stringify({ email: "ada@phone.local" })
+  const ada = JSON.stringify({ email: "user@example.invalid" })
   zcodeHas({ [KEY]: "id2.secret2", zcodejwttoken: "j2", "oauth:zai:user_info": ada })
   expect(_internal.stateOf(auth)).toMatchObject({ key: "id2.secret2", jwt: "j2" })
 
@@ -86,11 +86,11 @@ async function appSignIn() {
 }
 
 test("an app sign-in for A doesn't send with B's key once ZCode is signed in to B", async () => {
-  zcodeHas({ [KEY]: "idA.secretA", zcodejwttoken: "Bearer jA", "oauth:zai:user_info": JSON.stringify({ email: "alice@x.local" }) })
+  zcodeHas({ [KEY]: "idA.secretA", zcodejwttoken: "Bearer jA", "oauth:zai:user_info": JSON.stringify({ email: "user@example.invalid" }) })
   const a = await appSignIn()
-  zcodeHas({ [KEY]: "idB.secretB", zcodejwttoken: "Bearer jB", "oauth:zai:user_info": JSON.stringify({ email: "bob@x.local" }) })
+  zcodeHas({ [KEY]: "idB.secretB", zcodejwttoken: "Bearer jB", "oauth:zai:user_info": JSON.stringify({ email: "user@example.invalid" }) })
   const b = await appSignIn()
-  expect([a.accountId, b.accountId]).toEqual(["alice@x.local", "bob@x.local"])
+  expect([a.accountId, b.accountId]).toEqual(["user@example.invalid", "user@example.invalid"])
 
   expect(_internal.stateOf(a)).toMatchObject({ key: "idA.secretA", jwt: "jA" })
   expect(_internal.stateOf(b)).toMatchObject({ key: "idB.secretB", jwt: "jB" })
@@ -121,9 +121,9 @@ test("an app sign-in for A doesn't send with B's key once ZCode is signed in to 
 })
 
 test("an app sign-in for A whose saved session has lapsed, with ZCode on B, says sign in again", async () => {
-  zcodeHas({ zcodejwttoken: "Bearer " + expiredJWT, "oauth:zai:user_info": JSON.stringify({ email: "alice@x.local" }) })
+  zcodeHas({ zcodejwttoken: "Bearer " + expiredJWT, "oauth:zai:user_info": JSON.stringify({ email: "user@example.invalid" }) })
   const a = await appSignIn()
-  zcodeHas({ zcodejwttoken: "Bearer jB-live", "oauth:zai:user_info": JSON.stringify({ email: "bob@x.local" }) })
+  zcodeHas({ zcodejwttoken: "Bearer jB-live", "oauth:zai:user_info": JSON.stringify({ email: "user@example.invalid" }) })
   expect(_internal.stateOf(a).jwt).toBe(expiredJWT)
 
   _internal.routes?.clear?.()
@@ -145,7 +145,7 @@ test("an app sign-in for A whose saved session has lapsed, with ZCode on B, says
 // Coding Pro's key sits in config.json, the built-in coding plan
 // provider's options.apiKey (yetone/magpie#2130)
 test("ZCode 3.15's plan key is read from its config.json", async () => {
-  const bm = JSON.stringify({ email: "bm@example.com" })
+  const bm = JSON.stringify({ email: "user@example.invalid" })
   zcodeHas({ zcodejwttoken: "Bearer j1", "oauth:bigmodel:user_info": bm, "oauth:bigmodel:access_token": "tok" })
   const config = (provider) => writeFileSync(join(dir(), "config.json"), JSON.stringify({ $schema: "https://opencode.ai/config.json", provider }))
   config({

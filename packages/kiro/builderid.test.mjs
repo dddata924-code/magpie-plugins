@@ -83,7 +83,7 @@ test("a Builder ID signed in here lists and serves its own models under Builder 
   const seen = kiro()
   const h = await hooks()
   const auth = { type: "oauth", access: "t", refresh: "r", expires: later(), method: "idc", loginProvider: "BuilderId", region: "us-east-1",
-    profileArn: "", clientId: "c", clientSecret: "s", accountId: "student@example.edu" }
+    profileArn: "", clientId: "c", clientSecret: "s", accountId: "user@example.invalid" }
   const list = await h.provider.models({ models: { auto: {} } }, { auth })
   expect(Object.keys(list)).toEqual(["auto", "claude-opus-5.5", "claude-sonnet-5.5"])
   await ask(h, auth, "claude-opus-5.5")
@@ -97,7 +97,7 @@ test("an AWS sign-in whose profiles Kiro won't list for Builder ID takes Builder
   const h = await hooks()
   // moved from the built-in without its provider said
   const auth = { type: "oauth", access: "t", refresh: "r", expires: later(), method: "idc", region: "us-east-1", profileArn: "",
-    clientId: "c", clientSecret: "s", accountId: "student@example.edu" }
+    clientId: "c", clientSecret: "s", accountId: "user@example.invalid" }
   const list = await h.provider.models({ models: { auto: {} } }, { auth })
   expect(Object.keys(list)).toContain("claude-opus-5.5")
   expect(seen.profiles).toBe(1)
@@ -108,7 +108,7 @@ test("Identity Center still has its profile listed", async () => {
   const seen = kiro({ profiles: [{ arn: IDC }] })
   const h = await hooks()
   const auth = { type: "oauth", access: "t", refresh: "r", expires: later(), method: "idc", loginProvider: "Enterprise", region: "us-east-1",
-    profileArn: "", clientId: "c", clientSecret: "s", accountId: "dev@corp.example" }
+    profileArn: "", clientId: "c", clientSecret: "s", accountId: "user@example.invalid" }
   await h.provider.models({ models: { auto: {} } }, { auth })
   expect(seen.profiles).toBe(1)
   expect(seen.listedWith).toEqual([IDC])

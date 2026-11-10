@@ -18,7 +18,7 @@ afterEach(() => (globalThis.fetch = real))
 const ok = (data) => Response.json({ code: 200, success: true, data })
 
 // a BigModel account with its own Pro plan in 默认项目 and a seat on team t1
-function vendor({ seat = "VALID", teams = true, user = { email: "ada@example.com" } } = {}) {
+function vendor({ seat = "VALID", teams = true, user = { email: "user@example.invalid" } } = {}) {
   const seen = []
   globalThis.fetch = async (input, init = {}) => {
     const u = new URL(typeof input === "string" ? input : input.url)
@@ -61,7 +61,7 @@ test("the plan sign-in takes the account's own plan when it has a team seat too"
   const r = await signIn("ZCode: BigModel (智谱) GLM Coding Plan")
   expect(r.type).toBe("success")
   expect(r.access).toBe("own.own-secret")
-  expect(r.accountId).toBe("ada@example.com")
+  expect(r.accountId).toBe("user@example.invalid")
   const s = JSON.parse(r.refresh)
   expect(s).toMatchObject({ site: "bigmodel", key: "own.own-secret", plan: "GLM Coding Pro" })
   expect(s.org).toBeUndefined()
@@ -73,7 +73,7 @@ test("the team sign-in takes the team's seat, its key and plan, under a name of 
   expect(r.type).toBe("success")
   expect(r.access).toBe("tk.team-secret")
   expect(r.expires).toBe(0)
-  expect(r.accountId).toBe("ada@example.com (team)")
+  expect(r.accountId).toBe("user@example.invalid (team)")
   expect(JSON.parse(r.refresh)).toMatchObject({
     site: "bigmodel",
     base: "https://open.bigmodel.cn/api/anthropic",

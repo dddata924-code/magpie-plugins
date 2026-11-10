@@ -18,7 +18,7 @@ const noOrg = {
   access: "tok",
   refresh: "r",
   expires: Date.now() + 3_600_000,
-  accountId: "d@example.com",
+  accountId: "user@example.invalid",
   activeOrganizationId: "",
   region: "",
   premBaseHost: "",
@@ -31,7 +31,7 @@ async function refused(body, headers = {}) {
     const u = new URL(String(url))
     seen.push(u.pathname)
     // whoami names no org before the first request, and one after it
-    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: asked++ ? "fac_K" : "", email: "d@example.com", region: "" }))
+    if (u.pathname === "/api/cli/whoami") return new Response(JSON.stringify({ userId: "user_k", orgId: asked++ ? "fac_K" : "", email: "user@example.invalid", region: "" }))
     return new Response(body, { status: 403, headers: { "content-type": "application/json", ...headers } })
   }
   let saved = { ...noOrg }

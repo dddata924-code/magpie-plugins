@@ -44,7 +44,7 @@ test("only an https host on Trae's own domains is taken", () => {
   expect(t("https://trae-api-cn.mchost.guru")).toBe("https://trae-api-cn.mchost.guru")
   expect(t("https://ent-acme.trae.cn/")).toBe("https://ent-acme.trae.cn")
   expect(t("https://ent.trae.ai")).toBe("https://ent.trae.ai")
-  for (const bad of ["http://ent.trae.cn", "https://trae.cn.evil.com", "https://eviltrae.cn", "https://trae-api-cn.evil.com", "https://u:p@ent.trae.cn", "https://ent.trae.cn:8443", "https://ent.trae.cn/?x=1", "ent.trae.cn", "", undefined]) {
+  for (const bad of ["http://ent.trae.cn", "https://trae.cn.evil.com", "https://eviltrae.cn", "https://trae-api-cn.evil.com", "https://u:user@example.invalid", "https://ent.trae.cn:8443", "https://ent.trae.cn/?x=1", "ent.trae.cn", "", undefined]) {
     expect(t(bad)).toBe("")
   }
 })

@@ -162,7 +162,7 @@ async function fixture({ failResult = false, stallKv = false } = {}) {
   const account = {
     type: "oauth",
     access: `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200, sub: "synthetic-h1-" + randomUUID() })).toString("base64url")}.fixture`,
-    refresh: "", accountId: "fixture@example.invalid",
+    refresh: "", accountId: "user@example.invalid",
   }
   const plugin = await CursorAuthPlugin()
   const loader = await plugin.auth.loader(async () => account)

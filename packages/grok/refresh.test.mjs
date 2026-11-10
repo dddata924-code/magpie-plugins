@@ -35,7 +35,7 @@ writeFileSync(
 echo $n > "$GROK_HOME/runs"
 sleep 0.2
 case "$FAKE_GROK" in
-  renew) printf '{"a":{"key":"tok-%s","email":"g@x.ai","expires_at":"${later}"}}' $n > "$GROK_HOME/auth.json" ;;
+  renew) printf '{"a":{"key":"tok-%s","email":"user@example.invalid","expires_at":"${later}"}}' $n > "$GROK_HOME/auth.json" ;;
   logout) rm -f "$GROK_HOME/auth.json" ;;
   *) exit 1 ;;
 esac
@@ -56,8 +56,8 @@ afterEach(() => {
 
 // signedIn writes the CLI's sign-in in home, its token ending at expires
 function signedIn(key, expires) {
-  writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key, email: "g@x.ai", expires_at: new Date(expires).toISOString() } }))
-  return { type: "oauth", refresh: home, access: key, expires, accountId: "g@x.ai" }
+  writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key, email: "user@example.invalid", expires_at: new Date(expires).toISOString() } }))
+  return { type: "oauth", refresh: home, access: key, expires, accountId: "user@example.invalid" }
 }
 const runs = () => Number(readFileSync(join(home, "runs"), "utf8").trim() || 0)
 

@@ -13,7 +13,7 @@ afterEach(() => f?.close())
 // store is a sign-in as magpie keeps it: read afresh by getAuth, saved by
 // client.auth.set
 function store(a) {
-  const s = { auth: { type: "oauth", accountId: "a@example.com", ...a }, saves: [] }
+  const s = { auth: { type: "oauth", accountId: "user@example.invalid", ...a }, saves: [] }
   s.getAuth = async () => s.auth
   s.client = { auth: { set: async ({ path, body }) => { s.saves.push({ id: path.id, body }); s.auth = body } } }
   return s
@@ -35,7 +35,7 @@ test("a token about to end is refreshed first and saved", async () => {
   expect(ref.form).toMatchObject({ grant_type: "refresh_token", refresh_token: "r1", client_id: "mcode-public", scope: "agent.default", audience: "agent-backend" })
   expect(f.seen.find((r) => r.path.endsWith("/messages")).headers.get("authorization")).toBe("Bearer new")
   expect(s.saves.length).toBe(1)
-  expect(s.saves[0]).toMatchObject({ id: "minimax-code", body: { type: "oauth", access: "new", refresh: "r2", accountId: "a@example.com" } })
+  expect(s.saves[0]).toMatchObject({ id: "minimax-code", body: { type: "oauth", access: "new", refresh: "r2", accountId: "user@example.invalid" } })
 })
 
 test("two requests racing refresh once; one reading the old token late joins it", async () => {

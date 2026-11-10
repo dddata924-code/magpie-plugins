@@ -21,7 +21,7 @@ mkdirSync(bin)
 let log = ""
 let logs = 0
 
-// a devin CLI signed in as a@x.dev: `auth status` reads the data folder it
+// a devin CLI signed in as user@example.invalid: `auth status` reads the data folder it
 // is given when FAKE_HONOURS is set, and its own (as on Windows) when not;
 // `models list` lists one family, and every run is logged in FAKE_LOG
 writeFileSync(
@@ -86,10 +86,10 @@ const unix = process.platform !== "win32"
 const SLOW = 30_000
 
 test.if(unix)("a second account is named as Devin names its key, not as the CLI's own account", async () => {
-  devin((key) => (key === "key-b" ? statusOf("b@x.dev", "TEAMS_TIER_DEVIN_PRO") : statusOf("a@x.dev", "TEAMS_TIER_DEVIN_PRO")))
+  devin((key) => (key === "key-b" ? statusOf("user@example.invalid", "TEAMS_TIER_DEVIN_PRO") : statusOf("user@example.invalid", "TEAMS_TIER_DEVIN_PRO")))
   const r = await _internal.success("key-b", "https://server.codeium.com")
-  expect(r).toEqual({ type: "success", provider: "devin", key: "key-b", metadata: { email: "b@x.dev", plan: "Devin Pro" } })
-  expect((await _internal.success("key-a", "https://server.codeium.com")).metadata.email).toBe("a@x.dev")
+  expect(r).toEqual({ type: "success", provider: "devin", key: "key-b", metadata: { email: "user@example.invalid", plan: "Devin Pro" } })
+  expect((await _internal.success("key-a", "https://server.codeium.com")).metadata.email).toBe("user@example.invalid")
 }, SLOW)
 
 test("two organizations under the same email are named and keyed apart", async () => {
@@ -97,7 +97,7 @@ test("two organizations under the same email are named and keyed apart", async (
     Response.json({
       userStatus: {
         name: "sky",
-        email: "m@x.dev",
+        email: "user@example.invalid",
         teamId,
         teamsTier: "TEAMS_TIER_DEVIN_MAX",
         planStatus: {
@@ -119,13 +119,13 @@ test("two organizations under the same email are named and keyed apart", async (
     type: "success",
     provider: "devin",
     key: "key-org-1",
-    metadata: { email: "m@x.dev · opt", plan: "Devin Max", orgId: "org_1", teamId: "devin-team$account-1" },
+    metadata: { email: "user@example.invalid · opt", plan: "Devin Max", orgId: "org_1", teamId: "devin-team$account-1" },
   })
   expect(r2).toEqual({
     type: "success",
     provider: "devin",
     key: "key-org-2",
-    metadata: { email: "m@x.dev · lab", plan: "Devin Max", orgId: "org_2", teamId: "devin-team$account-2" },
+    metadata: { email: "user@example.invalid · lab", plan: "Devin Max", orgId: "org_2", teamId: "devin-team$account-2" },
   })
 })
 
@@ -140,12 +140,12 @@ test.if(unix)("when Devin can't tell, the CLI names the account only if it read 
   expect((await _internal.success("key-c", "https://server.codeium.com")).metadata).toEqual({ email: "Devin" })
   // a CLI that honours the folder answers for the key
   process.env.FAKE_HONOURS = "1"
-  process.env.FAKE_EMAIL = "c@x.dev"
-  expect((await _internal.success("key-c", "https://server.codeium.com")).metadata).toEqual({ email: "c@x.dev", plan: "Devin Pro" })
+  process.env.FAKE_EMAIL = "user@example.invalid"
+  expect((await _internal.success("key-c", "https://server.codeium.com")).metadata).toEqual({ email: "user@example.invalid", plan: "Devin Pro" })
 }, SLOW)
 
 test.if(unix)("a CLI that reads its own account's folder isn't asked for the key's models", async () => {
-  devin(() => statusOf("b@x.dev"))
+  devin(() => statusOf("user@example.invalid"))
   const fams = await _internal.familiesFor("key-models-b", "https://server.codeium.com")
   expect(fams.map((f) => f.uid)).toEqual(_internal.familiesOf(_internal.SNAPSHOT).map((f) => f.uid))
   expect(runs()).toEqual(["auth status"])
@@ -156,7 +156,7 @@ test.if(unix)("a CLI that reads its own account's folder isn't asked for the key
 
 test.if(unix)("a CLI that names another account than Devin does isn't asked for the key's models", async () => {
   process.env.FAKE_HONOURS = "1"
-  devin(() => statusOf("b@x.dev"))
+  devin(() => statusOf("user@example.invalid"))
   const fams = await _internal.familiesFor("key-models-b2", "https://server.codeium.com")
   expect(fams.map((f) => f.uid)).not.toContain("cli-only")
   expect(runs()).toEqual(["auth status"])
@@ -164,8 +164,8 @@ test.if(unix)("a CLI that names another account than Devin does isn't asked for 
 
 test.if(unix)("a CLI that answers for the key gives its list", async () => {
   process.env.FAKE_HONOURS = "1"
-  process.env.FAKE_EMAIL = "b@x.dev"
-  devin(() => statusOf("B@x.dev"))
+  process.env.FAKE_EMAIL = "user@example.invalid"
+  devin(() => statusOf("user@example.invalid"))
   const fams = await _internal.familiesFor("key-models-ok", "https://server.codeium.com")
   expect(fams.map((f) => f.uid)).toEqual(["cli-only"])
   expect(runs()).toEqual(["auth status", "models list --format json"])
@@ -176,7 +176,7 @@ test("readsHome and tierName", () => {
   const home = join(tmp, "h")
   expect(readsHome(`Logged in\n  File:   ${join(home, "devin", "credentials.toml")}\n`, home)).toBe(true)
   expect(readsHome(`Logged in\n  File:   ${join(tmp, "own", "devin", "credentials.toml")}\n`, home)).toBe(false)
-  expect(readsHome("Logged in\n  Email: a@x.dev\n", home)).toBe(true)
+  expect(readsHome("Logged in\n  Email: user@example.invalid\n", home)).toBe(true)
   expect(tierName("TEAMS_TIER_DEVIN_PRO")).toBe("Devin Pro")
   expect(tierName("TEAMS_TIER_DEVIN_TEAMS_V2")).toBe("Devin Teams")
   expect(tierName("TEAMS_TIER_UNSPECIFIED")).toBe("")
@@ -207,7 +207,7 @@ test("Devin's model configs are read as the families `devin models list` prints"
 
 test.if(unix)("an account the CLI doesn't answer for gets Devin's list for its key, Gemini 4 Argon in it (plugins #115)", async () => {
   // as on Windows: the CLI reads its own credentials.toml, signed in as A
-  devin(() => statusOf("b@x.dev"), realConfigs)
+  devin(() => statusOf("user@example.invalid"), realConfigs)
   const fams = await _internal.familiesFor("key-models-win", "https://server.codeium.com")
   expect(fams.map((f) => f.uid)).toContain("gemini-4-argon")
   expect(fams.map((f) => f.uid)).not.toContain("cli-only")
@@ -217,15 +217,15 @@ test.if(unix)("an account the CLI doesn't answer for gets Devin's list for its k
 
 test.if(unix)("a CLI that reads its own folder but is signed in as the key's account gives its list when Devin can't be asked", async () => {
   // as on Windows, the CLI signed in to the same account as the key
-  process.env.FAKE_EMAIL = "b@x.dev"
-  devin(() => statusOf("B@x.dev"))
+  process.env.FAKE_EMAIL = "user@example.invalid"
+  devin(() => statusOf("user@example.invalid"))
   const fams = await _internal.familiesFor("key-models-win-same", "https://server.codeium.com")
   expect(fams.map((f) => f.uid)).toEqual(["cli-only"])
   expect(runs()).toEqual(["auth status", "models list --format json"])
 }, SLOW)
 
 test.if(unix)("a list the plugin is asked for names Gemini 4 Argon for an account the CLI doesn't answer for", async () => {
-  devin(() => statusOf("b@x.dev"), realConfigs)
+  devin(() => statusOf("user@example.invalid"), realConfigs)
   const got = await (await DevinAuthPlugin()).provider.models({ models: {} }, { auth: { type: "api", key: "key-models-list" } })
   expect(Object.keys(got)).toContain("gemini-4-argon")
   expect(got["gemini-4-argon"].name).toBe("Gemini 4 Argon")

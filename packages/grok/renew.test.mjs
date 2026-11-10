@@ -38,7 +38,7 @@ writeFileSync(
   `n=$(( $(cat "$GROK_HOME/runs" 2>/dev/null || echo 0) + 1 ))
 echo $n > "$GROK_HOME/runs"
 case "$FAKE_GROK" in
-  renew) printf '{"a":{"key":"tok-%s","email":"g@x.ai","expires_at":"${later}"}}' $n > "$GROK_HOME/auth.json" ;;
+  renew) printf '{"a":{"key":"tok-%s","email":"user@example.invalid","expires_at":"${later}"}}' $n > "$GROK_HOME/auth.json" ;;
   same) ;;
   *) echo "silent refresh outcome=Failed(SelfHealing)" >&2; exit 1 ;;
 esac
@@ -62,8 +62,8 @@ afterEach(() => {
 
 // signedIn writes the CLI's sign-in in home, good for a day by its own say
 function signedIn(key) {
-  writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key, email: "g@x.ai", expires_at: later } }))
-  return { type: "oauth", refresh: home, access: key, expires: Date.parse(later), accountId: "g@x.ai" }
+  writeFileSync(join(home, "auth.json"), JSON.stringify({ a: { key, email: "user@example.invalid", expires_at: later } }))
+  return { type: "oauth", refresh: home, access: key, expires: Date.parse(later), accountId: "user@example.invalid" }
 }
 const runs = () => {
   try {
@@ -193,7 +193,7 @@ test("auth.json that stays torn is the last sign-in read whole there", async () 
 
 test("auth.json torn with nothing read before is unknown: no account is marked signed out", async () => {
   writeFileSync(join(home, "auth.json"), '{"a":{"key":"tok-7"')
-  const auth = { type: "oauth", refresh: home, access: "tok-7", expires: Date.now() + 60_000, accountId: "g@x.ai" }
+  const auth = { type: "oauth", refresh: home, access: "tok-7", expires: Date.now() + 60_000, accountId: "user@example.invalid" }
   const { hooks } = await plugin()
   const e = await hooks.auth.refresh(structuredClone(auth)).catch((e) => e)
   expect(e).toBeInstanceOf(Error)

@@ -101,13 +101,13 @@ test("qoder: a PAT account is named by its email, as the browser sign-in is", as
   globalThis.fetch = async (url) => {
     const u = new URL(String(url))
     if (u.pathname === "/api/v1/jobToken/exchange") return json({ token: "jt-g", refresh_token: "jrt-g", expires_in: 86400000 })
-    if (u.pathname === "/api/v1/userinfo") return json({ id: "g-1", email: "g@example.com", name: "G" })
+    if (u.pathname === "/api/v1/userinfo") return json({ id: "g-1", email: "user@example.invalid", name: "G" })
     return new Response("", { status: 500 })
   }
   const { hooks } = await plugin(null)
   const patMethod = hooks.auth.methods.find((m) => m.label?.includes("PAT"))
   const res = await patMethod.authorize({ pat: "pt-g" }).callback()
-  expect(res.accountId).toBe("g@example.com")
+  expect(res.accountId).toBe("user@example.invalid")
 })
 
 test("qoder: PAT auth method validates PAT format", async () => {
@@ -130,7 +130,7 @@ test("qoder: PAT sign-in exchanges token and returns credentials", async () => {
       return json({ token: "jt-pat", refresh_token: "jrt-pat", expires_in: 86400000, expires_at: new Date(Date.now() + 86400000).toISOString(), refresh_token_expires_at: new Date(Date.now() + 172800000).toISOString(), refresh_token_expires_in: 172800000 })
     }
     if (u.host === "openapi.qoder.sh" && u.pathname === "/api/v1/userinfo") {
-      return json({ id: "user-123", email: "test@example.com", name: "Test User" })
+      return json({ id: "user-123", email: "user@example.invalid", name: "Test User" })
     }
     return new Response("", { status: 500 })
   }
@@ -144,7 +144,7 @@ test("qoder: PAT sign-in exchanges token and returns credentials", async () => {
   expect(result.access).toBe("jt-pat")
   expect(result.refresh).toBe("jrt-pat")
   expect(result.uid).toBe("user-123")
-  expect(result.email).toBe("test@example.com")
+  expect(result.email).toBe("user@example.invalid")
   expect(result.patAuth).toBe(true)
   expect(result.pat).toBe("pt-test123")
   expect(result.deviceToken).toBe("")
@@ -160,7 +160,7 @@ test("qoder: PAT sign-in reads alternate response fields", async () => {
       return json({ access_token: "jt-alt", refreshToken: "jrt-alt", expire_time: new Date(Date.now() + 7200_000).toISOString() })
     }
     if (u.pathname === "/api/v1/userinfo") {
-      return json({ id: "user-alt", email: "alt@example.com" })
+      return json({ id: "user-alt", email: "user@example.invalid" })
     }
     return new Response("", { status: 500 })
   }
@@ -187,7 +187,7 @@ test("qoder: PAT sign-in fails when no user id", async () => {
   globalThis.fetch = async (url) => {
     const u = new URL(String(url))
     if (u.pathname === "/api/v1/jobToken/exchange") return json({ token: "jt-x", refresh_token: "jrt-x", expires_in: 86400000 })
-    if (u.pathname === "/api/v1/userinfo") return json({ email: "no-id@example.com" })
+    if (u.pathname === "/api/v1/userinfo") return json({ email: "user@example.invalid" })
     return new Response("", { status: 500 })
   }
   const { hooks } = await plugin(null)
@@ -204,8 +204,8 @@ const patCredential = (over = {}) => ({
   refresh: "jrt-old",
   expires: Date.now() - 1000,
   uid: "user-re",
-  email: "re@example.com",
-  accountId: "re@example.com",
+  email: "user@example.invalid",
+  accountId: "user@example.invalid",
   name: "",
   machineId: "machine-1",
   deviceToken: "",
@@ -231,7 +231,7 @@ function mockRenew() {
       return json({ token: `jt-exchange-${exchangeCount}`, refresh_token: `jrt-exchange-${exchangeCount}`, expires_in: 86400000 })
     }
     if (u.pathname === "/api/v1/userinfo") {
-      return json({ id: "user-re", email: "re@example.com" })
+      return json({ id: "user-re", email: "user@example.invalid" })
     }
     if (u.pathname === "/sash/api/v2/me/usage") {
       return json({ displayMode: "qoder", qoderUsage: { userType: "pro", userQuota: { name: "Credits", total: 100, used: 10, unit: "credits" } } })

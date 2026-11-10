@@ -42,10 +42,10 @@ test("a membership is read from the answer or its data", () => {
     .toEqual({ plan: "M Plan Plus", until: new Date(1800000000000).toISOString(), balance: "0 credits", windows: [] })
 })
 
-const auth = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3600_000, accountId: "a@example.com" }
+const auth = { type: "oauth", access: "tok", refresh: "r", expires: Date.now() + 3600_000, accountId: "user@example.invalid" }
 
 function account(f, { plan = false } = {}) {
-  f.route("GET /v1/api/user/info", () => json({ statusInfo: { code: 0 }, data: { userInfo: { realUserID: "u-42", userEmail: "a@example.com" } } }))
+  f.route("GET /v1/api/user/info", () => json({ statusInfo: { code: 0 }, data: { userInfo: { realUserID: "u-42", userEmail: "user@example.invalid" } } }))
   f.route("POST /matrix/api/v1/user/get_user_extra_info", () => json({ statusInfo: { code: 0 }, data: { workspaces: [
     { workspace_id: 9, workspace_type: 1 },
     { workspace_id: 7, workspace_type: 0, op_group_id: "grp-7", opcredit_balance: "50" },
@@ -64,7 +64,7 @@ test("a free account shows its credits", async () => {
   account(f)
   const hooks = await MiniMaxCodeAuthPlugin({ client: {} })
   const u = await hooks.auth.usage(async () => auth)
-  expect(u).toEqual({ plan: "Free", balance: "1200 credits", windows: [], user: "a@example.com", signIn: "kept" })
+  expect(u).toEqual({ plan: "Free", balance: "1200 credits", windows: [], user: "user@example.invalid", signIn: "kept" })
   // its own workspace's membership was asked for, signed, with its user id
   const m = f.seen.find((r) => r.path === "/matrix/api/v1/commerce/get_membership_info")
   expect(m.json).toEqual({ workspace_id: 7 })

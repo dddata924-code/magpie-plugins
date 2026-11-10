@@ -68,7 +68,7 @@ else process.exit(2)
   delete process.env.USERPROFILE
   // Keep ADC discovery inside the fixture: the developer's own ADC file must
   // never decide a test's auth mode.
-  const set = (values = {}) => writeFile(state, JSON.stringify({ project: "example-project", account: "user@example.com", log, ...values }))
+  const set = (values = {}) => writeFile(state, JSON.stringify({ project: "example-project", account: "user@example.invalid", log, ...values }))
   await set()
   return {
     directory, set, sdk,

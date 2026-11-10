@@ -15,8 +15,8 @@ afterEach(() => {
 // ---- the sign-in it keeps ----------------------------------------------------
 
 test("authOf keeps both keys and the account they belong to", () => {
-  expect(I.authOf({ id: "u1", email: "ada@example.com" }, { controlKey: "vela_ctrl_a", runtimeKey: "sk-amr-b" }))
-    .toEqual({ type: "success", refresh: "", expires: 0, access: "sk-amr-b", control: "vela_ctrl_a", accountId: "ada@example.com", email: "ada@example.com", uid: "u1" })
+  expect(I.authOf({ id: "u1", email: "user@example.invalid" }, { controlKey: "vela_ctrl_a", runtimeKey: "sk-amr-b" }))
+    .toEqual({ type: "success", refresh: "", expires: 0, access: "sk-amr-b", control: "vela_ctrl_a", accountId: "user@example.invalid", email: "user@example.invalid", uid: "u1" })
 })
 
 test("authOf is nothing without both keys", () => {
@@ -40,11 +40,11 @@ test("the poll takes the approval's keys, and says so when the code runs out", a
     const n = calls.length
     const body = n < 2
       ? { status: "pending", controlKey: null, runtimeKey: null, user: null }
-      : { status: "approved", controlKey: "vela_ctrl_a", runtimeKey: "sk-amr-b", user: { id: "u1", email: "ada@example.com" } }
+      : { status: "approved", controlKey: "vela_ctrl_a", runtimeKey: "sk-amr-b", user: { id: "u1", email: "user@example.invalid" } }
     return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
   }
   const got = await I.waitForDevice({ deviceId: "d1", deviceSecret: "s1", interval: 0, until: Date.now() + 5000 }, { sleep: async () => {} })
-  expect(got).toMatchObject({ access: "sk-amr-b", control: "vela_ctrl_a", accountId: "ada@example.com", uid: "u1" })
+  expect(got).toMatchObject({ access: "sk-amr-b", control: "vela_ctrl_a", accountId: "user@example.invalid", uid: "u1" })
   expect(calls[0]).toBe("https://amr-api.open-design.ai/api/v1/cli/device-authorizations/d1/token")
 
   globalThis.fetch = async () => new Response(JSON.stringify({ status: "expired" }), { status: 200 })
@@ -321,10 +321,10 @@ test("usage reads the plan, the wallet and the windows at the control key", asyn
     }
     return new Response("{}", { status: 404 })
   }
-  const auth = { access: "sk-amr-b", control: "vela_ctrl_a", email: "ada@example.com" }
+  const auth = { access: "sk-amr-b", control: "vela_ctrl_a", email: "user@example.invalid" }
   expect(await hooks.auth.usage(async () => auth)).toEqual({
     plan: "Design Plan Go",
-    user: "ada@example.com",
+    user: "user@example.invalid",
     balance: "$1.50",
     until: "2026-11-11T06:36:14.000Z",
     renew: "auto",

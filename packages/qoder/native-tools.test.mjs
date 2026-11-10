@@ -28,7 +28,7 @@ function callsFrom(events) {
 async function ask(reply, stream) {
   const auth = {
     type: "oauth", access: "fixture-job-token", refresh: "fixture-refresh-token",
-    expires: Date.now() + 3_600_000, accountId: "native-tools@example.test",
+    expires: Date.now() + 3_600_000, accountId: "user@example.invalid",
     uid: "native-tools", machineId: "fixture-machine",
   }
   globalThis.fetch = async (url) =>
