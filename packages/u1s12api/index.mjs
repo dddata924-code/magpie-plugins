@@ -67,27 +67,35 @@ const AUTH_TIMEOUT_MS = 60_000
 const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 5 * 60 * 1000
 const RPC_TIMEOUT_MS = 600_000
-// Bound the flattened text context; transport itself uses stdin, never argv.
-const MAX_PROMPT_CHARS = 24_000
+// Bound the flattened text context. Transport is stdin (no argv limit), so
+// this budget protects the model's context window, not CreateProcess: agent
+// system prompts plus tool catalogs run tens of thousands of chars, and
+// shredding them at 24K made provider-backed agents read a broken prompt
+// (the CLI itself runs the full 1M-token window). 400K chars ≈ 100K tokens,
+// under every u1s1 model's compaction budget; U1S1_MAX_PROMPT_CHARS overrides.
+const MAX_PROMPT_CHARS = Number(process.env.U1S1_MAX_PROMPT_CHARS) || 400_000
 // The model TTFB is dominated by the reasoning level the CLI sends. The
 // account's settings.json defaults are heavy (qwen=xhigh, glm=max,
 // deepseek=high): measured first byte 15.8s for qwen at xhigh vs 7.1s at
-// low, and 8.1s vs 6.6s for deepseek. Every u1s1 model accepts low, so the
-// plugin pins it; U1S1_THINKING overrides, and "off" is sent only when the
-// model allows disabling reasoning.
+// low, and 8.1s vs 6.6s for deepseek. Plain chat runs at low for speed;
+// agentic turns (a tool catalog is attached) run at high so tool selection
+// and code edits keep the quality the CLI itself delivers. U1S1_THINKING
+// overrides both; glm-5.3-flash rejects "off" (levels low/high/max), so off
+// is never sent by default.
 const DEFAULT_THINKING = "low"
+const AGENT_THINKING = "high"
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// thinkingLevel resolves the reasoning level to pin on every CLI call.
-// U1S1_THINKING wins when valid; otherwise the low floor. Never returns
-// "off" by default: glm-5.3-flash does not accept off (levels low/high/max),
-// and low is the fastest level every model shares — that is the whole point.
-function thinkingLevel() {
+// thinkingLevel resolves the reasoning level for a CLI call. U1S1_THINKING
+// wins when valid; otherwise agentic turns (tools attached) run high and
+// plain chat runs low. Never returns "off" by default: glm-5.3-flash does
+// not accept off (levels low/high/max).
+function thinkingLevel(hasTools = false) {
   const want = (process.env.U1S1_THINKING ?? "").trim().toLowerCase()
   if (THINKING_LEVELS.includes(want)) return want
-  return DEFAULT_THINKING
+  return hasTools ? AGENT_THINKING : DEFAULT_THINKING
 }
 
 // stagingImage turns one image block into a temp path the CLI's @<path>
@@ -640,7 +648,7 @@ class RpcWorker {
     this.cancel = null
   }
 
-  prompt(message, images, { onText, signal, model, timeoutMs = RPC_TIMEOUT_MS } = {}) {
+  prompt(message, images, { onText, signal, model, timeoutMs = RPC_TIMEOUT_MS, hasTools = false } = {}) {
     if (signal?.aborted) return Promise.reject(new Error("the request was aborted"))
     if (this.dead) return Promise.reject(new Error("the u1s1 CLI process exited"))
     if (this.proc) return Promise.reject(new Error("the u1s1 CLI worker already has a request"))
@@ -653,8 +661,8 @@ class RpcWorker {
     if (images?.length && !argFiles.length) message += "\n\n[附 " + images.length + " 张图片，文本模式未携带]"
     const args = [this.cli.index, "-p", "--no-session", "--no-tools"]
     if (model) args.push("--model", "u1s1/" + String(model).replace(/^(?:u1s12api|u1s1)\//, ""))
-    // 速度：钉住思考等级，避免 settings.json 的 max/xhigh 拖慢首字节
-    args.push("--thinking", thinkingLevel())
+    // 思考等级：普通聊天 low 提速，agent 场景（带工具）high 保质量
+    args.push("--thinking", thinkingLevel(hasTools))
     args.push(...argFiles.map((f) => "@" + f))
     return new Promise((resolve, reject) => {
       let proc, timer, settled = false, out = "", errOut = ""
@@ -893,7 +901,7 @@ class RpcDaemon {
 
   // prompt runs one turn in its own session and resolves with the assistant
   // text and the real usage the CLI reported. onText gets streaming deltas.
-  async prompt(message, images, { onText, signal, model, onTool, timeoutMs = RPC_TIMEOUT_MS } = {}) {
+  async prompt(message, images, { onText, signal, model, onTool, timeoutMs = RPC_TIMEOUT_MS, hasTools = false } = {}) {
     await this.start()
     if (signal?.aborted) throw new Error("the request was aborted")
     // A turn can legitimately outlive the idle window (slow model, long tool
@@ -913,9 +921,10 @@ class RpcDaemon {
         // to the daemon default rather than failing the request
       }
     }
-    // the daemon already pins low thinking at start; the request may override
-    if (thinkingLevel() !== DEFAULT_THINKING) {
-      await this.send({ type: "set_thinking_level", level: thinkingLevel() }, { signal, timeoutMs: 10000 }).catch(() => null)
+    // 思考等级：普通聊天 low，agent 场景（带工具）high——与 CLI 内体验对齐
+    const level = thinkingLevel(hasTools)
+    if (level !== DEFAULT_THINKING) {
+      await this.send({ type: "set_thinking_level", level }, { signal, timeoutMs: 10000 }).catch(() => null)
     }
     const turn = new TurnCollector({ onText, onTool })
     this._activeTurn = turn
@@ -926,6 +935,11 @@ class RpcDaemon {
         turn.settled(new Error(responded?.error || "the u1s1 CLI RPC prompt failed"))
       }
       const result = await turn.finished // waits for turn_end / agent_end
+      // 空回复守卫：模型只产出 thinking 块时 RPC 不报错但正文为空，与 print
+      // 路径同口径——空输出按失败处理，Magpie 才不会渲染空气泡。
+      if (!String(result.text ?? "").trim()) {
+        throw new Error("the u1s1 CLI returned an empty response (only thinking output)")
+      }
       return { text: result.text, usage: result.usage, model: normalized || null, stopReason: result.stopReason ?? "stop" }
     } finally {
       if (this._activeTurn === turn) this._activeTurn = null
@@ -1039,11 +1053,13 @@ export const U1s12apiPlugin = async (_input) => {
     if (options.signal?.aborted) throw new Error("the request was aborted")
     const cli = cliEntry()
     if (!cli) throw Object.assign(new Error("未找到本地 u1s1 CLI，请安装官方 CLI 并登录。"), { noCli: true })
+    // agent 场景标记：请求带工具目录时，思考等级升到 high
+    const hasTools = Array.isArray(options.tools) && options.tools.length > 0
     const { prompt, images } = packPrompt(messages, options)
     const shared = resident(cli)
     if (shared) {
       // serialize prompts over the daemon; each prompt opens its own session
-      const run = shared.queue.then(() => shared.worker.prompt(prompt, images, options))
+      const run = shared.queue.then(() => shared.worker.prompt(prompt, images, { ...options, hasTools }))
       shared.queue = run.catch(() => {})
       try {
         return await run
@@ -1052,10 +1068,10 @@ export const U1s12apiPlugin = async (_input) => {
         daemonBroken = true
         try { shared.worker.stop() } catch {}
         if (options.signal?.aborted) throw error
-        return runPrintMode(cli, prompt, images, options)
+        return runPrintMode(cli, prompt, images, { ...options, hasTools })
       }
     }
-    return runPrintMode(cli, prompt, images, options)
+    return runPrintMode(cli, prompt, images, { ...options, hasTools })
   }
 
   const runPrintMode = async (cli, prompt, images, options) => {
@@ -1362,7 +1378,7 @@ function packPrompt(messages, options = {}) {
   const protocol = toolProtocol(options.tools, options.toolChoice)
   const packed = prompt => ({ prompt: protocol ? prompt + "\n\n" + protocol : prompt, images })
   if (text.length <= MAX_PROMPT_CHARS) return packed(text)
-  const marker = "[工具结果已截断，保留最近对话以避免 CLI 参数过长]\n\n"
+  const marker = "[历史已截断，保留最近的对话以适配上下文预算]\n\n"
   const latestIndex = items.findLastIndex((message) => message?.role === "user")
   const latest = latestIndex < 0 ? "" : parts[latestIndex]
   const available = MAX_PROMPT_CHARS - marker.length
@@ -1412,6 +1428,7 @@ export const _internal = {
   packPrompt,
   MAX_PROMPT_CHARS,
   DEFAULT_THINKING,
+  AGENT_THINKING,
   htu,
   isB64Url,
 }

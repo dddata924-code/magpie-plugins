@@ -122,15 +122,15 @@ test("spent quota groups are informational when cash still remains", () => {
   assert.equal(spent.limit, 2000)
 })
 
-test("prompt packing bounds argv-sized prompts while retaining the latest user turn", () => {
+test("prompt packing bounds oversized prompts while retaining the latest user turn", () => {
   const packed = _internal.packPrompt([
     { role: "system", content: "system" },
-    { role: "tool", content: "x".repeat(200000) },
+    { role: "tool", content: "x".repeat(_internal.MAX_PROMPT_CHARS + 50000) },
     { role: "user", content: "latest user request" },
   ])
   assert.ok(packed.prompt.length <= _internal.MAX_PROMPT_CHARS)
   assert.match(packed.prompt, /latest user request/)
-  assert.match(packed.prompt, /工具结果已截断/)
+  assert.match(packed.prompt, /历史已截断/)
 })
 
 test("packageGroups keeps scopes and daily packs in groups of their own", () => {
