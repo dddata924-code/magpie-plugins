@@ -1,0 +1,31 @@
+# @magpie-community/middleware-system-prompt
+
+New API's **系统提示词** (a channel's `system_prompt` and its override switch) as [magpie](https://usemagpie.ai) gateway middleware. It gives the requests agents send a system prompt of yours, in each API's own place for one:
+
+| API | Where the prompt goes |
+| --- | --- |
+| Anthropic | `system` |
+| Chat | the first `system` or `developer` message |
+| Responses | `instructions` |
+| Gemini | `systemInstruction` |
+
+Install it from magpie's **Plugins › Discover**, or with `magpie plugin add @magpie-community/middleware-system-prompt`. Set its options under **Plugins › Installed › Options**, or with `magpie plugin options system-prompt '<json>'`.
+
+## Options
+
+```json
+{ "system_prompt": "Reply in the language the user writes in.",
+  "override": true, "position": "append",
+  "agents": ["claude"], "models": ["deepseek"] }
+```
+
+- **No system prompt yet.** A request without one gets yours.
+- **`override`.** A request that has its own prompt keeps it unchanged, unless `override` is `true`. Then yours goes in as well, placed by `position`:
+  - `"append"` (the default) puts yours after it. Agents cache their own prompt, so adding after it keeps that cache.
+  - `"prepend"` puts yours before it, as New API does. This makes the provider read the whole prompt again on every turn.
+- **`agents`.** When given, the prompt applies only to these agents, by magpie's agent ids: `claude`, `codex`, `opencode`, and so on.
+- **`models`.** When given, the prompt applies only to models whose names begin with one of these prefixes.
+
+Codex sends its own model instructions, and changing them can change how its models behave. Use `agents` to leave Codex out if you don't want that.
+
+中文：New API 的「系统提示词」，作为 magpie 网关中间件。默认把你的提示词加在 agent 自己的提示词之后，这样不会破坏提示缓存。

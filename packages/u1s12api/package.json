@@ -1,0 +1,34 @@
+{
+  "name": "u1s12api",
+  "version": "0.2.2",
+  "description": "u1s1 provider plugin for magpie/OpenCode — browser sign-in, official CLI model gateway, daily check-in, quota display with routed spent windows and bounded CLI prompts.",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": "./index.mjs",
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "magpie": {
+    "icon": "https://u1s1app.com/favicon.svg",
+    "maxConcurrency": 2
+  },
+  "keywords": [
+    "magpie-plugin",
+    "u1s1",
+    "ai-coding",
+    "provider"
+  ],
+  "license": "MIT",
+  "repository": "https://github.com/magpie-community/plugins",
+  "bugs": {
+    "url": "https://github.com/magpie-community/plugins/issues"
+  },
+  "homepage": "https://github.com/magpie-community/plugins#readme",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "test": "node --test index.test.mjs transport.test.mjs quota.test.mjs tools.test.mjs"
+  }
+}

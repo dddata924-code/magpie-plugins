@@ -1,0 +1,8 @@
+{
+  "name": "magpie-community-plugins",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "check": "bun scripts/check.mjs"
+  }
+}
