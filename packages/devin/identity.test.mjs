@@ -30,7 +30,7 @@ writeFileSync(
 echo "$*" >> "$FAKE_LOG"
 if [ "$1" = auth ]; then
   if [ -n "$FAKE_HONOURS" ]; then f="$XDG_DATA_HOME/devin/credentials.toml"; else f="${tmp}/own/devin/credentials.toml"; fi
-  printf 'Logged in (via Devin).\\n\\nCredentials:\\n  File:              %s\\n\\nUser:\\n  Email:             %s\\n\\nAccount:\\n  Tier:              Devin Pro\\n' "$f" "${"$"}{FAKE_EMAIL:-a@x.dev}"
+  printf 'Logged in (via Devin).\\n\\nCredentials:\\n  File:              %s\\n\\nUser:\\n  Email:             %s\\n\\nAccount:\\n  Tier:              Devin Pro\\n' "$f" "${"$"}{FAKE_EMAIL:user@example.invalid}"
   exit 0
 fi
 echo '{"families":[{"family_uid":"cli-only","family_label":"CLI Only","variants":[{"model_uid":"cli-only-high","label":"CLI Only High"}]}]}'
