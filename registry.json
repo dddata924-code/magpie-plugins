@@ -519,6 +519,18 @@
         "en": "TodayAI (todayai.cn) cloud account: +86 phone SMS OTP login, plan quota and dynamic model list.",
         "zh": "TodayAI（todayai.cn）云端账号：+86 手机号验证码登录，套餐额度与动态模型列表。"
       }
+    },
+    {
+      "package": "u1s12api",
+      "name": "u1s12api",
+      "providers": [
+        "u1s12api"
+      ],
+      "community": true,
+      "summary": {
+        "en": "u1s1 (u1s1.io) coding subscription through the official u1s1 CLI: browser or local CLI sign-in, daily check-in packs, routed plan quota and streaming text models.",
+        "zh": "通过官方 u1s1 CLI 使用 u1s1（u1s1.io）编程订阅：浏览器或本机 CLI 登录、每日签到包、套餐额度路由与流式文本模型。"
+      }
     }
   ]
 }
